@@ -1,0 +1,159 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { getSupabaseClient } from "@/lib/supabase";
+
+export default function LoginPage() {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) window.location.href = "/dashboard";
+    });
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+
+    const supabase = getSupabaseClient();
+
+    if (mode === "signup") {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { username } },
+      });
+      if (error) { setError(error.message); }
+      else { setMessage("Check your email to confirm your account."); }
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) { setError(error.message); }
+      else { window.location.href = "/dashboard"; }
+    }
+
+    setLoading(false);
+  }
+
+  return (
+    <div className="min-h-screen bg-bg-primary flex flex-col items-center justify-center p-6">
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="text-center mb-10">
+          <h1 className="text-3xl font-medium text-brand-teal tracking-tight">Tradecraft</h1>
+          <p className="text-sm text-text-muted mt-2">
+            Trade real stocks with fake money. Compete. Win.
+          </p>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-3 gap-3 mb-8">
+          {[["$10K", "starting cash"], ["Real", "stock data"], ["60s", "refresh rate"]].map(([val, label]) => (
+            <div key={label} className="bg-bg-secondary rounded-xl p-3 text-center border border-border-dim">
+              <div className="text-base font-num font-medium text-text-primary">{val}</div>
+              <div className="text-[10px] text-text-muted mt-0.5">{label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Auth form */}
+        <div className="bg-bg-secondary rounded-2xl border border-border-dim p-6">
+          {/* Mode toggle */}
+          <div className="flex bg-bg-primary rounded-xl p-1 mb-6 border border-border-dim">
+            <button
+              onClick={() => { setMode("login"); setError(null); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                mode === "login" ? "bg-bg-card text-text-primary" : "text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              Sign in
+            </button>
+            <button
+              onClick={() => { setMode("signup"); setError(null); }}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                mode === "signup" ? "bg-bg-card text-text-primary" : "text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              Create account
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === "signup" && (
+              <div>
+                <label className="block text-[10px] font-medium text-text-muted uppercase tracking-wider mb-1.5">
+                  Username
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="your_handle"
+                  required
+                  className="w-full bg-bg-primary border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-dim focus:outline-none focus:border-border-strong transition-colors"
+                />
+              </div>
+            )}
+
+            <div>
+              <label className="block text-[10px] font-medium text-text-muted uppercase tracking-wider mb-1.5">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                className="w-full bg-bg-primary border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-dim focus:outline-none focus:border-border-strong transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-medium text-text-muted uppercase tracking-wider mb-1.5">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
+                className="w-full bg-bg-primary border border-border-subtle rounded-xl px-4 py-3 text-sm text-text-primary placeholder-text-dim focus:outline-none focus:border-border-strong transition-colors"
+              />
+            </div>
+
+            {error && (
+              <div className="text-xs text-down bg-[rgba(248,113,113,0.08)] border border-[rgba(248,113,113,0.2)] rounded-lg px-3 py-2">
+                {error}
+              </div>
+            )}
+            {message && (
+              <div className="text-xs text-up bg-[rgba(74,222,128,0.08)] border border-[rgba(74,222,128,0.2)] rounded-lg px-3 py-2">
+                {message}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 rounded-xl text-sm font-medium bg-brand-teal-dim border border-brand-teal text-brand-teal hover:bg-[rgba(125,211,176,0.2)] disabled:opacity-50 transition-all mt-2"
+            >
+              {loading ? "..." : mode === "login" ? "Sign in" : "Create account"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

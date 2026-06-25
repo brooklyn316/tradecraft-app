@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #0a0e1a;
+  color-scheme: dark;
+}
+
+body {
+  background: #0a0e1a;
+  color: #e8eaf0;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+
+/* Lightweight-charts container */
+.chart-container { position: relative; width: 100%; }
+.chart-container canvas { display: block; }
+
+/* Number font */
+.font-num { font-family: 'JetBrains Mono', monospace; }
+
+/* Glow effects for live indicator */
+@keyframes liveGlow {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px #4ade80; }
+  50% { opacity: 0.5; box-shadow: 0 0 2px #4ade80; }
+}
+.live-dot {
+  animation: liveGlow 2s ease-in-out infinite;
+}
+
+/* Flash animation for price updates */
+@keyframes priceUp {
+  0% { color: #e8eaf0; }
+  30% { color: #4ade80; background: rgba(74,222,128,0.1); }
+  100% { color: #e8eaf0; }
+}
+@keyframes priceDown {
+  0% { color: #e8eaf0; }
+  30% { color: #f87171; background: rgba(248,113,113,0.1); }
+  100% { color: #e8eaf0; }
+}
+.price-flash-up { animation: priceUp 1s ease-out; }
+.price-flash-down { animation: priceDown 1s ease-out; }

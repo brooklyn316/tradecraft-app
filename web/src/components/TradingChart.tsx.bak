@@ -1,0 +1,284 @@
+"use client";
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  createChart,
+  IChartApi,
+  ISeriesApi,
+  ColorType,
+  CrosshairMode,
+} from "lightweight-charts";
+import type { CandleInterval, ChartType, Candle } from "@/types";
+import { getCandles, fetchStockPrices } from "@/lib/stockApi";
+
+const INTERVALS: { label: string; value: CandleInterval }[] = [
+  { label: "5m", value: "5min" },
+  { label: "15m", value: "15min" },
+  { label: "1H", value: "60min" },
+  { label: "1D", value: "1day" },
+];
+
+interface TradingChartProps {
+  symbol: string;
+  companyName: string;
+  currentPrice: number;
+  changePercent: number;
+}
+
+export default function TradingChart({
+  symbol,
+  companyName,
+  currentPrice,
+  changePercent,
+}: TradingChartProps) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const lineSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+
+  const [chartType, setChartType] = useState<ChartType>("candlestick");
+  const [interval, setInterval] = useState<CandleInterval>("5min");
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [hoveredOhlc, setHoveredOhlc] = useState<{
+    open: number; high: number; low: number; close: number; time: string;
+  } | null>(null);
+
+  const isPositive = changePercent >= 0;
+
+  useEffect(() => {
+    if (!chartContainerRef.current) return;
+
+    const chart = createChart(chartContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: "transparent" },
+        textColor: "rgba(232,234,240,0.5)",
+        fontSize: 11,
+        fontFamily: "'JetBrains Mono', monospace",
+      },
+      grid: {
+        vertLines: { color: "rgba(255,255,255,0.04)" },
+        horzLines: { color: "rgba(255,255,255,0.04)" },
+      },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: "rgba(255,255,255,0.2)", labelBackgroundColor: "#1a2035" },
+        horzLine: { color: "rgba(255,255,255,0.2)", labelBackgroundColor: "#1a2035" },
+      },
+      rightPriceScale: {
+        borderColor: "rgba(255,255,255,0.06)",
+        scaleMargins: { top: 0.1, bottom: 0.2 },
+      },
+      timeScale: {
+        borderColor: "rgba(255,255,255,0.06)",
+        timeVisible: true,
+        secondsVisible: false,
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 260,
+    });
+
+    chartRef.current = chart;
+
+    // v4 API: use addCandlestickSeries / addLineSeries
+    const candleSeries = chart.addCandlestickSeries({
+      upColor: "#4ade80",
+      downColor: "#f87171",
+      wickUpColor: "#4ade80",
+      wickDownColor: "#f87171",
+      borderVisible: false,
+    });
+    candleSeriesRef.current = candleSeries;
+
+    const lineSeries = chart.addLineSeries({
+      color: "#7dd3b0",
+      lineWidth: 2,
+      crosshairMarkerVisible: true,
+      crosshairMarkerRadius: 4,
+      priceLineVisible: false,
+      lastValueVisible: true,
+      visible: false,
+    });
+    lineSeriesRef.current = lineSeries;
+
+    chart.subscribeCrosshairMove((param) => {
+      if (!param.time || !param.seriesData) {
+        setHoveredOhlc(null);
+        return;
+      }
+      const data = param.seriesData.get(candleSeries) as {
+        open?: number; high?: number; low?: number; close?: number;
+      } | undefined;
+      if (data?.open !== undefined) {
+        const time = new Date((param.time as number) * 1000);
+        setHoveredOhlc({
+          open: data.open,
+          high: data.high!,
+          low: data.low!,
+          close: data.close!,
+          time: time.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
+        });
+      }
+    });
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (chartContainerRef.current) {
+        chart.applyOptions({ width: chartContainerRef.current.clientWidth });
+      }
+    });
+    if (chartContainerRef.current) resizeObserver.observe(chartContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+      chart.remove();
+      chartRef.current = null;
+    };
+  }, []);
+
+  const loadCandles = useCallback(async () => {
+    setLoading(true);
+    try {
+      await fetchStockPrices([symbol], interval, true);
+      const data = await getCandles(symbol, interval, 150);
+      setCandles(data);
+    } catch (err) {
+      console.error("Chart load error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [symbol, interval]);
+
+  useEffect(() => {
+    loadCandles();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const timer = (setInterval as any)(() => { loadCandles(); }, 60_000);
+    return () => clearInterval(timer);
+  }, [loadCandles]);
+
+  useEffect(() => {
+    if (!candleSeriesRef.current || !lineSeriesRef.current || candles.length === 0) return;
+
+    const ohlcData = candles.map((c) => ({
+      time: Math.floor(new Date(c.time).getTime() / 1000) as unknown as import("lightweight-charts").Time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+    }));
+
+    const lineData = candles.map((c) => ({
+      time: Math.floor(new Date(c.time).getTime() / 1000) as unknown as import("lightweight-charts").Time,
+      value: c.close,
+    }));
+
+    if (chartType === "candlestick") {
+      candleSeriesRef.current.applyOptions({ visible: true });
+      lineSeriesRef.current.applyOptions({ visible: false });
+      candleSeriesRef.current.setData(ohlcData);
+    } else {
+      candleSeriesRef.current.applyOptions({ visible: false });
+      lineSeriesRef.current.applyOptions({ visible: true });
+      lineSeriesRef.current.setData(lineData);
+    }
+
+    chartRef.current?.timeScale().fitContent();
+  }, [candles, chartType]);
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-start justify-between px-4 pt-3 pb-2">
+        <div>
+          <div className="flex items-baseline gap-3">
+            <span className="text-xl font-medium font-num text-text-primary">
+              ${currentPrice.toFixed(2)}
+            </span>
+            <span className={`text-sm font-num ${isPositive ? "text-up" : "text-down"}`}>
+              {isPositive ? "+" : ""}{changePercent.toFixed(2)}%
+            </span>
+          </div>
+          {hoveredOhlc ? (
+            <div className="flex items-center gap-3 mt-1 text-xs font-num">
+              <span className="text-text-muted">{hoveredOhlc.time}</span>
+              <span className="text-text-muted">O <span className="text-text-secondary">{hoveredOhlc.open.toFixed(2)}</span></span>
+              <span className="text-text-muted">H <span className="text-up">{hoveredOhlc.high.toFixed(2)}</span></span>
+              <span className="text-text-muted">L <span className="text-down">{hoveredOhlc.low.toFixed(2)}</span></span>
+              <span className="text-text-muted">C <span className="text-text-secondary">{hoveredOhlc.close.toFixed(2)}</span></span>
+            </div>
+          ) : (
+            <div className="text-xs text-text-muted mt-1">{symbol} · {companyName}</div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-bg-secondary rounded-lg p-0.5 border border-border-dim">
+            <button
+              onClick={() => setChartType("candlestick")}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                chartType === "candlestick" ? "bg-bg-card text-text-primary" : "text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              <CandlestickIcon />
+              Candles
+            </button>
+            <button
+              onClick={() => setChartType("line")}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                chartType === "line" ? "bg-bg-card text-text-primary" : "text-text-muted hover:text-text-secondary"
+              }`}
+            >
+              <LineIcon />
+              Line
+            </button>
+          </div>
+
+          <div className="flex items-center bg-bg-secondary rounded-lg p-0.5 border border-border-dim">
+            {INTERVALS.map((iv) => (
+              <button
+                key={iv.value}
+                onClick={() => setInterval(iv.value)}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-medium font-num transition-all ${
+                  interval === iv.value ? "bg-bg-card text-text-primary" : "text-text-muted hover:text-text-secondary"
+                }`}
+              >
+                {iv.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="relative flex-1 min-h-0">
+        {loading && candles.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center z-10">
+            <div className="flex items-center gap-2 text-text-muted text-sm">
+              <div className="w-4 h-4 border-2 border-brand-teal border-t-transparent rounded-full animate-spin" />
+              Loading chart data...
+            </div>
+          </div>
+        )}
+        <div ref={chartContainerRef} className="chart-container w-full h-full" style={{ minHeight: 260 }} />
+      </div>
+    </div>
+  );
+}
+
+function CandlestickIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <rect x="2" y="4" width="3" height="6" rx="0.5" fill="currentColor" opacity="0.9" />
+      <line x1="3.5" y1="1" x2="3.5" y2="4" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="3.5" y1="10" x2="3.5" y2="13" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="9" y="5" width="3" height="5" rx="0.5" fill="currentColor" opacity="0.5" />
+      <line x1="10.5" y1="2" x2="10.5" y2="5" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+      <line x1="10.5" y1="10" x2="10.5" y2="12" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+    </svg>
+  );
+}
+
+function LineIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <polyline points="1,11 4,7 7,8 10,4 13,5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    </svg>
+  );
+}

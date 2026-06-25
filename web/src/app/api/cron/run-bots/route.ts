@@ -84,9 +84,9 @@ export async function GET(req: Request) {
   const results: Record<string, { logs: string[]; error?: string }> = {};
 
   // Collect all symbols that need fresh prices
-  const allSymbols = [...new Set(
+  const allSymbols = Array.from(new Set(
     Object.values(BOT_RUNNERS).flatMap(b => b.symbols)
-  )];
+  ));
 
   // Refresh prices first (single batch call)
   try {

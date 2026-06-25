@@ -61,7 +61,7 @@ export async function runE1(ctx: BotContext): Promise<string[]> {
   }
 
   // Signals: 3+ unique buyers
-  const signals = [...buyerMap.entries()]
+  const signals = Array.from(buyerMap.entries())
     .filter(([, members]) => members.size >= 3)
     .sort((a, b) => b[1].size - a[1].size);
 
@@ -127,7 +127,7 @@ export async function runE2(ctx: BotContext): Promise<string[]> {
   }
 
   // Buy anything she's bought (equal weight across her portfolio)
-  const targetSymbols = [...buys].filter(s => prices.has(s));
+  const targetSymbols = Array.from(buys).filter(s => prices.has(s));
   if (targetSymbols.length === 0) return [...logs, "E2: no new Pelosi buys in cache"];
 
   const portfolioTotal = totalPortfolioValue(holdings, prices, portfolio.cash_balance);

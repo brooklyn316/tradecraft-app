@@ -428,7 +428,7 @@ export async function loadBotContext(
   if (holdErr) throw holdErr;
 
   // Include any symbols currently held (even if not in the strategy's default list)
-  const allSymbols = [...new Set([...symbols, ...(holdings ?? []).map((h: BotHolding) => h.symbol)])];
+  const allSymbols = Array.from(new Set(Array.from(symbols).concat((holdings ?? []).map((h: BotHolding) => h.symbol))));
 
   const prices  = await loadPrices(supabase, allSymbols);
   const history = await loadHistory(supabase, allSymbols, historyDays);

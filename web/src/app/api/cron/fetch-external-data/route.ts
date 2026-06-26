@@ -4,7 +4,7 @@
 // vercel.json cron: "0 11 * * 1-5"  (11:00 UTC = 6:00 AM ET)
 //
 // Fetches and caches:
-//   - Capitol Trades (Congress + Pelosi) via Quiver Quant
+//   - Capitol Trades (Congress + Pelosi) via House/Senate Stock Watcher (free)
 //   - Berkshire Hathaway 13F via SEC EDGAR
 //   - ARKK holdings CSV via ARK Invest
 //   - Hedge fund consensus from top-20 13F filings
@@ -17,38 +17,83 @@ function verifyCronSecret(req: Request): boolean {
   return req.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
 }
 
-// ── Quiver Quantitative — Congress trades ─────────────────────
-// Free tier: https://api.quiverquant.com/beta/live/congresstrading
-// Returns last ~100 trades across all members.
+// ── Congress trades — House + Senate Stock Watcher (free, no key) ──
+// Community projects that parse official STOCK Act disclosures daily.
+// House: https://housestockwatcher.com
+// Senate: https://senatestockwatcher.com
 
 async function fetchCapitolTrades(supabase: ReturnType<typeof getBotLabClient>) {
-  const QUIVER_KEY = process.env.QUIVER_QUANT_API_KEY ?? "";
-  if (!QUIVER_KEY) throw new Error("QUIVER_QUANT_API_KEY not set");
-
-  const res = await fetch("https://api.quiverquant.com/beta/live/congresstrading", {
-    headers: { Authorization: `Token ${QUIVER_KEY}` },
-  });
-  if (!res.ok) throw new Error(`Quiver API error: ${res.status}`);
-
-  const data = await res.json();
-
-  // Filter last 30 days
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 30);
 
-  const recent = data.filter((t: any) => new Date(t.ReportDate) >= cutoff);
+  // Normalize a transaction type string to "Purchase" | "Sale"
+  function normalizeType(t: string): string {
+    const lower = (t ?? "").toLowerCase();
+    if (lower.includes("purchase") || lower === "buy") return "Purchase";
+    return "Sale";
+  }
 
-  // Normalize to our format
-  const trades = recent.map((t: any) => ({
-    symbol: t.Ticker?.toUpperCase(),
-    member: t.Representative,
-    transaction: t.Transaction,    // "Purchase" | "Sale" | "Sale (Partial)"
-    date: t.TransactionDate,
-    amount_range: t.Amount ?? "",
-    asset_type: t.AssetType ?? "Stock",
-  }));
+  // ── House ──
+  let houseTrades: any[] = [];
+  try {
+    const hRes = await fetch(
+      "https://house-stock-watcher-data.s3-us-west-2.amazonaws.com/data/all_transactions.json",
+      { headers: { "User-Agent": "TradecraftBotLab/1.0" } }
+    );
+    if (hRes.ok) {
+      const hData: any[] = await hRes.json();
+      houseTrades = hData
+        .filter((t) => {
+          const d = new Date(t.transaction_date ?? t.disclosure_date ?? "");
+          return d >= cutoff && t.ticker && t.ticker !== "--";
+        })
+        .map((t) => ({
+          symbol:       (t.ticker ?? "").toUpperCase(),
+          member:       t.representative ?? "",
+          transaction:  normalizeType(t.type ?? ""),
+          date:         t.transaction_date ?? t.disclosure_date ?? "",
+          amount_range: t.amount ?? "",
+          asset_type:   "Stock",
+        }));
+    }
+  } catch {
+    // House fetch failed — continue with Senate only
+  }
 
-  // Cache recent 30d trades
+  // ── Senate ──
+  let senateTrades: any[] = [];
+  try {
+    const sRes = await fetch(
+      "https://senate-stock-watcher-data.s3-us-west-2.amazonaws.com/aggregate/all_transactions.json",
+      { headers: { "User-Agent": "TradecraftBotLab/1.0" } }
+    );
+    if (sRes.ok) {
+      const sData: any[] = await sRes.json();
+      senateTrades = sData
+        .filter((t) => {
+          const d = new Date(t.transaction_date ?? t.disclosure_date ?? "");
+          return d >= cutoff && t.ticker && t.ticker !== "--";
+        })
+        .map((t) => ({
+          symbol:       (t.ticker ?? "").toUpperCase(),
+          member:       t.senator ?? "",
+          transaction:  normalizeType(t.type ?? ""),
+          date:         t.transaction_date ?? t.disclosure_date ?? "",
+          amount_range: t.amount ?? "",
+          asset_type:   t.asset_type ?? "Stock",
+        }));
+    }
+  } catch {
+    // Senate fetch failed — continue with House only
+  }
+
+  const trades = [...houseTrades, ...senateTrades];
+
+  if (trades.length === 0) {
+    throw new Error("No congressional trade data retrieved from either source");
+  }
+
+  // Cache all recent trades
   await supabase.from("external_data_cache").upsert({
     source: "capitol_trades",
     key: "recent_30d",
@@ -56,9 +101,9 @@ async function fetchCapitolTrades(supabase: ReturnType<typeof getBotLabClient>) 
     fetched_at: new Date().toISOString(),
   }, { onConflict: "source,key" });
 
-  // Cache Pelosi-specific trades (Nancy + Paul)
-  const pelosiTrades = trades.filter((t: any) =>
-    t.member?.includes("Pelosi")
+  // Cache Pelosi-specific trades (Nancy or Paul Pelosi)
+  const pelosiTrades = trades.filter((t) =>
+    t.member?.toLowerCase().includes("pelosi")
   );
 
   await supabase.from("external_data_cache").upsert({
@@ -186,12 +231,11 @@ async function fetchArkHoldings(supabase: ReturnType<typeof getBotLabClient>) {
 const TOP_HEDGE_FUND_CIKS: Record<string, string> = {
   "1336528": "Bridgewater Associates",
   "1037389": "Renaissance Technologies",
-  "0001037389": "Renaissance Technologies",
   "1599407": "Citadel Advisors",
   "0000102872": "Soros Fund Management",
   "1159159": "Two Sigma Investments",
   "0001418819": "Third Point LLC",
-  "0001037389": "D.E. Shaw",
+  "0001159159": "D.E. Shaw",
   "0001537762": "Tiger Global",
   "0001655489": "Coatue Management",
 };

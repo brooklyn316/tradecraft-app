@@ -405,36 +405,8 @@ export default function DashboardPage() {
         {/* ══ CENTER: Chart + bottom tabs ══ */}
         <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
 
-          {/* Chart toolbar */}
-          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0, background:"rgba(255,255,255,0.01)" }}>
-            <button
-              onClick={() => setSelectedStock(null)}
-              style={{ padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:5, cursor:"pointer",
-                background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
-                color:"rgba(232,234,240,0.7)" }}>
-              ← Market
-            </button>
-            {selectedStock && (
-              <button
-                onClick={() => setPredictStock({ symbol: selectedStock.symbol, price: selectedStock.price })}
-                style={{ padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:5, cursor:"pointer",
-                  background:"rgba(125,211,176,0.08)", border:"1px solid rgba(125,211,176,0.3)",
-                  color:"#7dd3b0" }}>
-                Predict
-              </button>
-            )}
-          </div>
-
           {/* Chart area — fills remaining space above bottom panel */}
           <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
-            {/* StockPredict overlay */}
-            {predictStock && (
-              <StockPredict
-                symbol={predictStock.symbol}
-                currentPrice={predictStock.price}
-                onClose={() => setPredictStock(null)}
-              />
-            )}
 
             {selectedStock ? (
               <TradingChart

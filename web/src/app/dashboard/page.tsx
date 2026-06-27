@@ -373,8 +373,8 @@ export default function DashboardPage() {
         {/* ══ CENTER: Chart + bottom tabs ══ */}
         <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
 
-          {/* Chart area — grows to fill */}
-          <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
+          {/* Chart area — 62% of center column */}
+          <div style={{ flex:"0 0 62%", overflow:"hidden", position:"relative" }}>
             {/* StockPredict overlay */}
             {predictStock && (
               <StockPredict
@@ -409,10 +409,12 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Bottom tab bar */}
+          {/* Bottom section — 38% of center column, never overflows */}
+          <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"column", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
+
+          {/* Tab bar */}
           <div style={{
             display: "flex",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
             borderBottom: "1px solid rgba(255,255,255,0.06)",
             flexShrink: 0,
             background: "rgba(255,255,255,0.01)",
@@ -433,8 +435,8 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Bottom content panel — fixed height so it's always visible */}
-          <div style={{ height: 250, overflowY: "auto", flexShrink: 0 }}>
+          {/* Scrollable content inside the 38% section */}
+          <div style={{ flex:1, overflowY:"auto", minHeight:0 }}>
 
             {bottomTab === "markets" && (
               <StockList
@@ -538,7 +540,8 @@ export default function DashboardPage() {
               </div>
             )}
 
-          </div>
+          </div>{/* end scrollable content */}
+          </div>{/* end 38% bottom section */}
         </main>
 
         {/* ══ NEWS PANEL ══ */}

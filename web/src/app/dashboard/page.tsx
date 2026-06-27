@@ -286,7 +286,12 @@ export default function DashboardPage() {
 
           <div className="flex-1 overflow-y-auto p-3">
             {centerTab === "chart" && selectedStock && (
-              <TradingChart symbol={selectedStock.symbol} />
+              <TradingChart
+                symbol={selectedStock.symbol}
+                companyName={selectedStock.company_name ?? selectedStock.symbol}
+                currentPrice={selectedStock.price}
+                changePercent={selectedStock.change_percent ?? 0}
+              />
             )}
             {centerTab === "chart" && !selectedStock && (
               <div className="flex items-center justify-center h-full text-gray-600">Select a stock to view its chart</div>

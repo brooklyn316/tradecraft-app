@@ -93,7 +93,7 @@ function BotInspector({ participantId, startingCash }: { participantId: string; 
       {/* Holdings */}
       {data.holdings.length > 0 && (
         <div style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-          <div style={{ padding: "6px 16px 4px", fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          <div style={{ padding: "6px 16px 4px", fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
             Holdings ({data.holdings.length})
           </div>
           {data.holdings.map(h => (
@@ -124,7 +124,7 @@ function BotInspector({ participantId, startingCash }: { participantId: string; 
 
       {/* Recent trades */}
       <div>
-        <div style={{ padding: "6px 16px 4px", fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        <div style={{ padding: "6px 16px 4px", fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
           Recent Trades ({data.trades.length})
         </div>
         {data.trades.length === 0 ? (
@@ -150,7 +150,7 @@ function BotInspector({ participantId, startingCash }: { participantId: string; 
                   <div style={{ fontSize: 11, fontFamily: "monospace", fontWeight: 700, color: isBuy ? "#f87171" : "#4ade80" }}>
                     {isBuy ? "−" : "+"}{formatCurrency(t.total)}
                   </div>
-                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.45)", marginTop: 1 }}>{formatRelTime(t.executed_at)}</div>
+                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.65)", marginTop: 1 }}>{formatRelTime(t.executed_at)}</div>
                 </div>
               </div>
             );
@@ -191,7 +191,7 @@ export default function Leaderboard({ entries, currentUserId, startingCash, endD
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: hasBots ? 8 : 0 }}>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(232,234,240,0.52)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Leaderboard</div>
-            <div style={{ fontSize: 10, fontFamily: "monospace", color: "rgba(232,234,240,0.45)", marginTop: 2 }}>{daysLeft}d remaining</div>
+            <div style={{ fontSize: 10, fontFamily: "monospace", color: "rgba(232,234,240,0.65)", marginTop: 2 }}>{daysLeft}d remaining</div>
           </div>
           {competitionId && (
             <button onClick={handleBotToggle} disabled={toggling}
@@ -213,7 +213,7 @@ export default function Leaderboard({ entries, currentUserId, startingCash, endD
         {entries.length === 0 ? (
           <div style={{ padding: "48px 16px", textAlign: "center" }}>
             <div style={{ fontSize: 13, color: "rgba(232,234,240,0.52)" }}>No competitors yet</div>
-            <div style={{ fontSize: 11, color: "rgba(232,234,240,0.45)", marginTop: 6 }}>Add bots to compete against</div>
+            <div style={{ fontSize: 11, color: "rgba(232,234,240,0.65)", marginTop: 6 }}>Add bots to compete against</div>
           </div>
         ) : (
           entries.map((entry, idx) => {
@@ -254,7 +254,7 @@ export default function Leaderboard({ entries, currentUserId, startingCash, endD
                           {entry.username}
                         </span>
                         {isCurrentUser && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 99, background: "rgba(125,211,176,0.12)", color: "#7dd3b0", border: "1px solid rgba(125,211,176,0.2)", flexShrink: 0 }}>YOU</span>}
-                        {entry.is_bot && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 99, background: "rgba(255,255,255,0.05)", color: "rgba(232,234,240,0.45)", flexShrink: 0 }}>BOT</span>}
+                        {entry.is_bot && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 99, background: "rgba(255,255,255,0.05)", color: "rgba(232,234,240,0.65)", flexShrink: 0 }}>BOT</span>}
                       </div>
                       <div style={{ fontSize: 10, fontFamily: "monospace", color: "rgba(232,234,240,0.5)" }}>{formatCurrency(entry.total_value)}</div>
                     </div>
@@ -270,7 +270,7 @@ export default function Leaderboard({ entries, currentUserId, startingCash, endD
                         </div>
                       </div>
                       {entry.is_bot && (
-                        <span style={{ fontSize: 10, color: "rgba(232,234,240,0.45)", transition: "transform 0.2s", transform: isExpanded ? "rotate(90deg)" : "none" }}>▶</span>
+                        <span style={{ fontSize: 10, color: "rgba(232,234,240,0.65)", transition: "transform 0.2s", transform: isExpanded ? "rotate(90deg)" : "none" }}>▶</span>
                       )}
                     </div>
                   </div>

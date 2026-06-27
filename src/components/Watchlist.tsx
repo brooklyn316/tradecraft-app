@@ -104,7 +104,7 @@ export default function Watchlist({ userId, stocks, onSelect }: WatchlistProps) 
                   {(searchResult.change_percent??0)>=0?"+":""}{(searchResult.change_percent??0).toFixed(2)}%
                 </span>
               </div>
-              <div style={{ fontSize:12, color:"rgba(232,234,240,0.4)", marginTop:2 }}>${searchResult.price.toFixed(2)} · {searchResult.company_name}</div>
+              <div style={{ fontSize:12, color:"rgba(232,234,240,0.60)", marginTop:2 }}>${searchResult.price.toFixed(2)} · {searchResult.company_name}</div>
             </div>
             {watchedSymbols.includes(searchResult.symbol) ? (
               <span style={{ fontSize:12, color:"#7dd3b0" }}>★ Watching</span>
@@ -127,7 +127,7 @@ export default function Watchlist({ userId, stocks, onSelect }: WatchlistProps) 
       ) : watchedStocks.length === 0 ? (
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", flex:1, gap:8, padding:20 }}>
           <div style={{ fontSize:28 }}>★</div>
-          <div style={{ fontSize:13, color:"rgba(232,234,240,0.4)", fontWeight:500 }}>Your watchlist is empty</div>
+          <div style={{ fontSize:13, color:"rgba(232,234,240,0.60)", fontWeight:500 }}>Your watchlist is empty</div>
           <div style={{ fontSize:12, color:"rgba(232,234,240,0.5)", textAlign:"center", maxWidth:220 }}>
             Search for a ticker above, or click ★ on any stock in Live Markets
           </div>

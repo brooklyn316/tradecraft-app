@@ -269,7 +269,7 @@ export default function DashboardPage() {
       <div style={{ minHeight:"100vh", background:"#060a14", display:"flex", alignItems:"center", justifyContent:"center" }}>
         <div style={{ textAlign:"center" }}>
           <div style={{ width:32, height:32, border:"2px solid #7dd3b0", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 12px" }} />
-          <p style={{ color:"rgba(232,234,240,0.45)", fontSize:13 }}>Loading Tradecraft…</p>
+          <p style={{ color:"rgba(232,234,240,0.65)", fontSize:13 }}>Loading Tradecraft…</p>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
@@ -285,7 +285,7 @@ export default function DashboardPage() {
             <span style={{ color:"#7dd3b0", fontWeight:800, fontSize:17, letterSpacing:"-0.02em" }}>TC</span>
             <span style={{ fontWeight:600, fontSize:14 }}>Tradecraft</span>
           </div>
-          <button onClick={handleSignOut} style={{ fontSize:12, color:"rgba(232,234,240,0.45)", background:"none", border:"none", cursor:"pointer" }}>Sign out</button>
+          <button onClick={handleSignOut} style={{ fontSize:12, color:"rgba(232,234,240,0.65)", background:"none", border:"none", cursor:"pointer" }}>Sign out</button>
         </header>
         <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
           <div style={{ maxWidth:480, width:"100%" }}>
@@ -321,7 +321,7 @@ export default function DashboardPage() {
     background: "transparent",
     whiteSpace: "nowrap",
     letterSpacing: "0.04em",
-    color: active ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+    color: active ? "#7dd3b0" : "rgba(232,234,240,0.65)",
     borderBottom: active ? "2px solid #7dd3b0" : "2px solid transparent",
     transition: "all 0.15s",
   });
@@ -333,7 +333,7 @@ export default function DashboardPage() {
       <div style={{ display:"flex", alignItems:"center", padding:"7px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)", gap:8 }}>
         <div style={{ flex:1, minWidth:0 }}>
           <span style={{ fontSize:12, fontWeight:800, marginRight:6, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</span>
-          <span style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</span>
+          <span style={{ fontSize:10, color:"rgba(232,234,240,0.60)" }}>${s.price.toFixed(2)}</span>
         </div>
         <span style={{ fontSize:12, fontWeight:700, color: up ? "#4ade80" : "#f87171", flexShrink:0 }}>
           {up ? "+" : ""}{(s.change_percent ?? 0).toFixed(2)}%
@@ -393,7 +393,7 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        <span style={{ fontSize:11, color:"rgba(232,234,240,0.35)", flexShrink:0, whiteSpace:"nowrap" }}>
+        <span style={{ fontSize:11, color:"rgba(232,234,240,0.55)", flexShrink:0, whiteSpace:"nowrap" }}>
           ● Refreshes in {countdown}s
         </span>
 
@@ -404,7 +404,7 @@ export default function DashboardPage() {
         )}
 
         <button onClick={handleSignOut}
-          style={{ fontSize:11, color:"rgba(232,234,240,0.4)", background:"none", border:"none", cursor:"pointer", flexShrink:0 }}>
+          style={{ fontSize:11, color:"rgba(232,234,240,0.60)", background:"none", border:"none", cursor:"pointer", flexShrink:0 }}>
           Sign out
         </button>
       </header>
@@ -442,7 +442,7 @@ export default function DashboardPage() {
                 isOverview
               />
             ) : (
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"rgba(232,234,240,0.4)", fontSize:13 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"rgba(232,234,240,0.60)", fontSize:13 }}>
                 Select a stock to view its chart
               </div>
             )}
@@ -480,7 +480,7 @@ export default function DashboardPage() {
                 background: "transparent",
                 whiteSpace: "nowrap",
                 letterSpacing: "0.04em",
-                color: bottomTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                color: bottomTab === key ? "#7dd3b0" : "rgba(232,234,240,0.65)",
                 borderBottom: bottomTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
                 transition: "all 0.15s",
                 flexShrink: 0,
@@ -516,7 +516,7 @@ export default function DashboardPage() {
                         borderLeft:"2px solid #4ade80", gap:6 }}>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:13, fontWeight:800, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</div>
-                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</div>
+                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.60)" }}>${s.price.toFixed(2)}</div>
                       </div>
                       <div style={{ fontSize:13, fontWeight:700, color:"#4ade80", flexShrink:0 }}>
                         +{(s.change_percent ?? 0).toFixed(2)}%
@@ -537,7 +537,7 @@ export default function DashboardPage() {
                         borderLeft:"2px solid #f87171", gap:6 }}>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:13, fontWeight:800, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</div>
-                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</div>
+                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.60)" }}>${s.price.toFixed(2)}</div>
                       </div>
                       <div style={{ fontSize:13, fontWeight:700, color:"#f87171", flexShrink:0 }}>
                         {(s.change_percent ?? 0).toFixed(2)}%
@@ -552,7 +552,7 @@ export default function DashboardPage() {
                     ★ Watch Picks
                   </div>
                   {watchPicks.length === 0 ? (
-                    <div style={{ padding:"12px 10px", fontSize:11, color:"rgba(232,234,240,0.3)", lineHeight:1.5 }}>
+                    <div style={{ padding:"12px 10px", fontSize:11, color:"rgba(232,234,240,0.50)", lineHeight:1.5 }}>
                       Add stocks to your watchlist to see picks here
                     </div>
                   ) : watchPicks.map(s => {
@@ -565,7 +565,7 @@ export default function DashboardPage() {
                           background: up ? "#4ade80" : "#f87171" }} />
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:12, fontWeight:800, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</div>
-                          <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</div>
+                          <div style={{ fontSize:10, color:"rgba(232,234,240,0.60)" }}>${s.price.toFixed(2)}</div>
                         </div>
                         <div style={{ textAlign:"right", flexShrink:0 }}>
                           <div style={{ fontSize:9, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
@@ -614,7 +614,7 @@ export default function DashboardPage() {
             {bottomTab === "activity" && (
               <div>
                 {activityFeed.length === 0 ? (
-                  <div style={{ padding:24, textAlign:"center", color:"rgba(232,234,240,0.35)", fontSize:12 }}>
+                  <div style={{ padding:24, textAlign:"center", color:"rgba(232,234,240,0.55)", fontSize:12 }}>
                     No trades yet — be the first to make a move!
                   </div>
                 ) : activityFeed.map((t, i) => {
@@ -640,7 +640,7 @@ export default function DashboardPage() {
                       <span style={{ fontSize:11, fontWeight:800, color:"rgba(232,234,240,0.85)", flexShrink:0 }}>
                         {t.shares}× {t.symbol}
                       </span>
-                      <span style={{ fontSize:10, color:"rgba(232,234,240,0.4)", fontFamily:"monospace", flexShrink:0 }}>
+                      <span style={{ fontSize:10, color:"rgba(232,234,240,0.60)", fontFamily:"monospace", flexShrink:0 }}>
                         @ ${t.price.toFixed(2)}
                       </span>
                       {/* Click to chart */}
@@ -648,10 +648,10 @@ export default function DashboardPage() {
                         onClick={() => setSelectedStock(stocks.find(s => s.symbol === t.symbol) ?? null)}
                         style={{ padding:"1px 6px", fontSize:9, borderRadius:4, cursor:"pointer",
                           background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)",
-                          color:"rgba(232,234,240,0.4)", flexShrink:0 }}
+                          color:"rgba(232,234,240,0.60)", flexShrink:0 }}
                       >Chart</button>
                       {/* Time — pushed right */}
-                      <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(232,234,240,0.3)", whiteSpace:"nowrap" }}>
+                      <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(232,234,240,0.50)", whiteSpace:"nowrap" }}>
                         {timeAgo(t.executed_at)}
                       </span>
                     </div>
@@ -689,7 +689,7 @@ export default function DashboardPage() {
                 border: "none",
                 background: "transparent",
                 letterSpacing: "0.06em",
-                color: newsTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                color: newsTab === key ? "#7dd3b0" : "rgba(232,234,240,0.65)",
                 borderBottom: newsTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
                 transition: "all 0.15s",
               }}>{label}</button>
@@ -726,7 +726,7 @@ export default function DashboardPage() {
               return (
                 <div style={{ padding:"10px 0 0" }}>
                   <div style={{ padding:"0 14px 8px", fontSize:9, fontWeight:700,
-                    color:"rgba(232,234,240,0.35)", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    color:"rgba(232,234,240,0.55)", textTransform:"uppercase", letterSpacing:"0.1em" }}>
                     Sector Performance
                   </div>
                   {sectors.map(({ label, avg }) => {
@@ -793,7 +793,7 @@ export default function DashboardPage() {
                 border: "none",
                 background: "transparent",
                 whiteSpace: "nowrap",
-                color: rightTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                color: rightTab === key ? "#7dd3b0" : "rgba(232,234,240,0.65)",
                 borderBottom: rightTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
                 transition: "all 0.15s",
               }}>{label}</button>
@@ -817,7 +817,7 @@ export default function DashboardPage() {
                   onTradeComplete={handleTradeComplete}
                 />
               ) : (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:120, color:"rgba(232,234,240,0.35)", fontSize:12 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:120, color:"rgba(232,234,240,0.55)", fontSize:12 }}>
                   Select a stock to trade
                 </div>
               )
@@ -872,7 +872,7 @@ export default function DashboardPage() {
               flexShrink: 0,
               background: "rgba(255,255,255,0.01)",
             }}>
-              <div style={{ fontSize:9, fontWeight:700, color:"rgba(232,234,240,0.35)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:7 }}>
+              <div style={{ fontSize:9, fontWeight:700, color:"rgba(232,234,240,0.55)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:7 }}>
                 Invite Friends
               </div>
               <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:6 }}>

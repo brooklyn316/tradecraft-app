@@ -126,9 +126,9 @@ export default function NewsPanel({ symbol, companyName }: NewsPanelProps) {
                     background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
                     {s.label}
                   </span>
-                  <span style={{ fontSize: 9, color: "rgba(232,234,240,0.45)", fontWeight: 600 }}>{article.source}</span>
+                  <span style={{ fontSize: 9, color: "rgba(232,234,240,0.65)", fontWeight: 600 }}>{article.source}</span>
                 </div>
-                <span style={{ fontSize: 9, color: "rgba(232,234,240,0.4)", fontFamily: "monospace" }}>
+                <span style={{ fontSize: 9, color: "rgba(232,234,240,0.60)", fontFamily: "monospace" }}>
                   {formatAge(article.publishedAt)}
                 </span>
               </div>
@@ -160,7 +160,7 @@ export default function NewsPanel({ symbol, companyName }: NewsPanelProps) {
         })}
 
         {articles.length > 0 && (
-          <div style={{ padding: "10px 14px", fontSize: 9, color: "rgba(232,234,240,0.4)", textAlign: "center" }}>
+          <div style={{ padding: "10px 14px", fontSize: 9, color: "rgba(232,234,240,0.60)", textAlign: "center" }}>
             Via Yahoo Finance · Tap headline to expand
           </div>
         )}

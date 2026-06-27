@@ -106,7 +106,7 @@ export default function PriceAlerts({ userId, stocks, onSelectSymbol, refreshKey
                       style={{ flex: 1, padding: "7px 0", borderRadius: 7, fontSize: 11, fontWeight: 700, cursor: "pointer", textTransform: "capitalize",
                         background: formCondition === c ? (c === "above" ? "rgba(74,222,128,0.15)" : "rgba(248,113,113,0.15)") : "rgba(255,255,255,0.04)",
                         border: formCondition === c ? `1px solid ${c === "above" ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)"}` : "1px solid rgba(255,255,255,0.08)",
-                        color: formCondition === c ? (c === "above" ? "#4ade80" : "#f87171") : "rgba(232,234,240,0.4)" }}>
+                        color: formCondition === c ? (c === "above" ? "#4ade80" : "#f87171") : "rgba(232,234,240,0.60)" }}>
                       {c === "above" ? "↑ Above" : "↓ Below"}
                     </button>
                   ))}
@@ -138,8 +138,8 @@ export default function PriceAlerts({ userId, stocks, onSelectSymbol, refreshKey
           <div style={{ padding: "48px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
             <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>🔔</div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.4)", fontWeight: 500 }}>No alerts set</div>
-              <div style={{ fontSize: 11, color: "rgba(232,234,240,0.45)", marginTop: 4 }}>Get notified when a stock hits your target price</div>
+              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.60)", fontWeight: 500 }}>No alerts set</div>
+              <div style={{ fontSize: 11, color: "rgba(232,234,240,0.65)", marginTop: 4 }}>Get notified when a stock hits your target price</div>
             </div>
           </div>
         ) : (
@@ -185,7 +185,7 @@ export default function PriceAlerts({ userId, stocks, onSelectSymbol, refreshKey
 
                 {/* Remove */}
                 <button onClick={() => handleRemove(alert.id)}
-                  style={{ background: "none", border: "none", color: "rgba(232,234,240,0.45)", fontSize: 18, cursor: "pointer", padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>
+                  style={{ background: "none", border: "none", color: "rgba(232,234,240,0.65)", fontSize: 18, cursor: "pointer", padding: "0 2px", lineHeight: 1, flexShrink: 0 }}>
                   ×
                 </button>
               </div>

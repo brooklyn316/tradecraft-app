@@ -86,7 +86,7 @@ export default function TradeHistory({ participantId, refreshKey }: TradeHistory
 
       {/* Trade list */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        <div style={{ padding: "8px 16px 4px", fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.1em", flexShrink: 0 }}>
+        <div style={{ padding: "8px 16px 4px", fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.1em", flexShrink: 0 }}>
           History ({trades.length})
         </div>
 
@@ -96,8 +96,8 @@ export default function TradeHistory({ participantId, refreshKey }: TradeHistory
           <div style={{ padding: "48px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
             <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📋</div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.45)", fontWeight: 500 }}>No trades yet</div>
-              <div style={{ fontSize: 11, color: "rgba(232,234,240,0.45)", marginTop: 4 }}>Your trade history will appear here</div>
+              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.65)", fontWeight: 500 }}>No trades yet</div>
+              <div style={{ fontSize: 11, color: "rgba(232,234,240,0.65)", marginTop: 4 }}>Your trade history will appear here</div>
             </div>
           </div>
         ) : (
@@ -130,7 +130,7 @@ export default function TradeHistory({ participantId, refreshKey }: TradeHistory
                     <span style={{ fontSize: 11, color: "rgba(232,234,240,0.52)", fontFamily: "monospace" }}>
                       {trade.shares} sh × ${trade.price.toFixed(2)}
                     </span>
-                    <span style={{ fontSize: 10, color: "rgba(232,234,240,0.45)" }}>
+                    <span style={{ fontSize: 10, color: "rgba(232,234,240,0.65)" }}>
                       {formatRelativeTime(trade.executed_at)}
                     </span>
                   </div>

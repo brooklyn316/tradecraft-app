@@ -123,7 +123,7 @@ export default function StockPredict({ symbol, currentPrice, onClose }: StockPre
               <div style={{ fontSize: 12, fontWeight: 700, color: "#f87171", marginBottom: 4 }}>Prediction failed</div>
               <div style={{ fontSize: 11, color: "rgba(232,234,240,0.58)", lineHeight: 1.5 }}>{error}</div>
             </div>
-            <button onClick={runPrediction} style={{ padding: "9px", borderRadius: 9, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(232,234,240,0.45)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+            <button onClick={runPrediction} style={{ padding: "9px", borderRadius: 9, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(232,234,240,0.65)", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
               ↻ Try again
             </button>
           </div>
@@ -157,7 +157,7 @@ export default function StockPredict({ symbol, currentPrice, onClose }: StockPre
 
             {/* Price target */}
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
                 Price target range · {result.timeframe}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -195,7 +195,7 @@ export default function StockPredict({ symbol, currentPrice, onClose }: StockPre
 
             {/* Technical signals */}
             <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Key signals</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>Key signals</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {result.signals.map((sig, i) => (
                   <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
@@ -221,11 +221,11 @@ export default function StockPredict({ symbol, currentPrice, onClose }: StockPre
               ↻ Re-run prediction
             </button>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <p style={{ margin: 0, fontSize: 9, color: "rgba(232,234,240,0.4)", lineHeight: 1.5, flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 9, color: "rgba(232,234,240,0.60)", lineHeight: 1.5, flex: 1 }}>
                 Technical analysis only · Not financial advice
               </p>
               {remaining !== null && (
-                <span style={{ fontSize: 9, color: remaining === 0 ? "#f87171" : "rgba(232,234,240,0.4)", fontFamily: "monospace", flexShrink: 0, marginLeft: 8 }}>
+                <span style={{ fontSize: 9, color: remaining === 0 ? "#f87171" : "rgba(232,234,240,0.60)", fontFamily: "monospace", flexShrink: 0, marginLeft: 8 }}>
                   {remaining}/{AI_LIMITS.predict} left today
                 </span>
               )}

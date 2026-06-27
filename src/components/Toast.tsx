@@ -60,7 +60,7 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
         <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(232,234,240,0.9)", marginBottom: 2 }}>
           Price Alert: {toast.symbol}
         </div>
-        <div style={{ fontSize: 11, color: "rgba(232,234,240,0.45)", lineHeight: 1.4 }}>
+        <div style={{ fontSize: 11, color: "rgba(232,234,240,0.65)", lineHeight: 1.4 }}>
           {toast.symbol} crossed {isAbove ? "above" : "below"} ${toast.targetPrice.toFixed(2)}<br />
           Now trading at <span style={{ color: isAbove ? "#4ade80" : "#f87171", fontFamily: "monospace", fontWeight: 600 }}>${toast.currentPrice.toFixed(2)}</span>
         </div>

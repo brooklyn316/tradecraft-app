@@ -70,7 +70,7 @@ export default function StockSearch({ onSelect }: Props) {
         {/* Search icon */}
         <svg
           width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-          style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(232,234,240,0.35)", pointerEvents: "none" }}
+          style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(232,234,240,0.55)", pointerEvents: "none" }}
         >
           <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
@@ -95,7 +95,7 @@ export default function StockSearch({ onSelect }: Props) {
 
         {/* Loading spinner */}
         {loading && (
-          <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "rgba(232,234,240,0.35)" }}>
+          <span style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "rgba(232,234,240,0.55)" }}>
             ···
           </span>
         )}
@@ -131,7 +131,7 @@ export default function StockSearch({ onSelect }: Props) {
               <span style={{ fontSize: 11, color: "rgba(232,234,240,0.6)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {r.name}
               </span>
-              <span style={{ fontSize: 9, color: "rgba(232,234,240,0.28)", flexShrink: 0, marginLeft: 4 }}>
+              <span style={{ fontSize: 9, color: "rgba(232,234,240,0.48)", flexShrink: 0, marginLeft: 4 }}>
                 {r.exchange}
               </span>
             </button>
@@ -148,7 +148,7 @@ export default function StockSearch({ onSelect }: Props) {
           borderRadius: 8,
           padding: "14px 12px",
           fontSize: 12,
-          color: "rgba(232,234,240,0.4)",
+          color: "rgba(232,234,240,0.60)",
           textAlign: "center",
         }}>
           No results for "{query}"

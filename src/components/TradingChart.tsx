@@ -213,14 +213,14 @@ export default function TradingChart({
           </div>
           {hoveredOhlc ? (
             <div style={{display:"flex",alignItems:"center",gap:10,marginTop:3,flexWrap:"wrap"}}>
-              <span style={{fontSize:11,color:"rgba(232,234,240,0.4)",fontFamily:"monospace"}}>{hoveredOhlc.time}</span>
-              <span style={{fontSize:11,color:"rgba(232,234,240,0.4)",fontFamily:"monospace"}}>O <span style={{color:"rgba(232,234,240,0.7)"}}>{hoveredOhlc.open.toFixed(2)}</span></span>
-              <span style={{fontSize:11,color:"rgba(232,234,240,0.4)",fontFamily:"monospace"}}>H <span style={{color:"#4ade80"}}>{hoveredOhlc.high.toFixed(2)}</span></span>
-              <span style={{fontSize:11,color:"rgba(232,234,240,0.4)",fontFamily:"monospace"}}>L <span style={{color:"#f87171"}}>{hoveredOhlc.low.toFixed(2)}</span></span>
-              <span style={{fontSize:11,color:"rgba(232,234,240,0.4)",fontFamily:"monospace"}}>C <span style={{color:"rgba(232,234,240,0.7)"}}>{hoveredOhlc.close.toFixed(2)}</span></span>
+              <span style={{fontSize:11,color:"rgba(232,234,240,0.60)",fontFamily:"monospace"}}>{hoveredOhlc.time}</span>
+              <span style={{fontSize:11,color:"rgba(232,234,240,0.60)",fontFamily:"monospace"}}>O <span style={{color:"rgba(232,234,240,0.7)"}}>{hoveredOhlc.open.toFixed(2)}</span></span>
+              <span style={{fontSize:11,color:"rgba(232,234,240,0.60)",fontFamily:"monospace"}}>H <span style={{color:"#4ade80"}}>{hoveredOhlc.high.toFixed(2)}</span></span>
+              <span style={{fontSize:11,color:"rgba(232,234,240,0.60)",fontFamily:"monospace"}}>L <span style={{color:"#f87171"}}>{hoveredOhlc.low.toFixed(2)}</span></span>
+              <span style={{fontSize:11,color:"rgba(232,234,240,0.60)",fontFamily:"monospace"}}>C <span style={{color:"rgba(232,234,240,0.7)"}}>{hoveredOhlc.close.toFixed(2)}</span></span>
             </div>
           ) : (
-            <div style={{fontSize:12,color:"rgba(232,234,240,0.4)",marginTop:3}}>
+            <div style={{fontSize:12,color:"rgba(232,234,240,0.60)",marginTop:3}}>
               {isOverview ? "S&P 500 ETF · Market overview" : `${symbol} · ${companyName}`}
             </div>
           )}

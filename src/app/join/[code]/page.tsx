@@ -113,7 +113,7 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
               <div style={{ fontSize: 26, fontWeight: 800, color: "white", letterSpacing: "-0.02em", lineHeight: 1.1, marginBottom: 6 }}>
                 {competition.name || "Tradecraft Competition"}
               </div>
-              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.4)", fontFamily: "monospace" }}>
+              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.60)", fontFamily: "monospace" }}>
                 Code: <span style={{ color: "#7dd3b0", letterSpacing: "0.1em" }}>{competition.invite_code}</span>
               </div>
             </>
@@ -161,7 +161,7 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
             <div style={{ textAlign: "center", padding: "16px 0" }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>🎉</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#4ade80", marginBottom: 4 }}>You&apos;re in!</div>
-              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.4)" }}>Redirecting to your dashboard…</div>
+              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.60)" }}>Redirecting to your dashboard…</div>
             </div>
           ) : (
             <>
@@ -172,7 +172,7 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
               )}
 
               {competition?.status !== "active" ? (
-                <div style={{ textAlign: "center", fontSize: 14, color: "rgba(232,234,240,0.4)", padding: "8px 0" }}>
+                <div style={{ textAlign: "center", fontSize: 14, color: "rgba(232,234,240,0.60)", padding: "8px 0" }}>
                   This competition has ended.
                 </div>
               ) : (
@@ -202,7 +202,7 @@ export default function JoinPage({ params }: { params: Promise<{ code: string }>
         </div>
       </div>
 
-      <div style={{ marginTop: 24, fontSize: 11, color: "rgba(232,234,240,0.4)" }}>
+      <div style={{ marginTop: 24, fontSize: 11, color: "rgba(232,234,240,0.60)" }}>
         Tradecraft · Virtual trading · Not financial advice
       </div>
     </div>

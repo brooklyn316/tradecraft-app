@@ -108,7 +108,7 @@ export default function LimitOrders({ participantId, refreshKey, onOrderFilled }
             <div style={{ fontSize: 13, color: "rgba(232,234,240,0.5)", marginBottom: 6 }}>
               {filter === "pending" ? "No pending orders" : filter === "filled" ? "No filled orders yet" : "No orders yet"}
             </div>
-            <div style={{ fontSize: 11, color: "rgba(232,234,240,0.4)", lineHeight: 1.6 }}>
+            <div style={{ fontSize: 11, color: "rgba(232,234,240,0.60)", lineHeight: 1.6 }}>
               Place a limit order from the Trade tab by switching to Limit mode.
             </div>
           </div>
@@ -151,11 +151,11 @@ export default function LimitOrders({ participantId, refreshKey, onOrderFilled }
               {/* Details grid */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginBottom: isPending ? 10 : 0 }}>
                 <div>
-                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Shares</div>
+                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Shares</div>
                   <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 700, color: "rgba(232,234,240,0.8)" }}>{order.shares}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>
+                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>
                     {isFilled ? "Filled at" : "Target"}
                   </div>
                   <div style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 700, color: isFilled ? "#4ade80" : "rgba(232,234,240,0.8)" }}>
@@ -163,16 +163,16 @@ export default function LimitOrders({ participantId, refreshKey, onOrderFilled }
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Total value</div>
+                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Total value</div>
                   <div style={{ fontSize: 12, fontFamily: "monospace", color: "rgba(232,234,240,0.5)" }}>
                     {formatCurrency(order.shares * (isFilled && order.filled_price ? order.filled_price : order.target_price))}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>
+                  <div style={{ fontSize: 9, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>
                     {isFilled ? "Filled" : "Placed"}
                   </div>
-                  <div style={{ fontSize: 12, fontFamily: "monospace", color: "rgba(232,234,240,0.4)" }}>
+                  <div style={{ fontSize: 12, fontFamily: "monospace", color: "rgba(232,234,240,0.60)" }}>
                     {formatAge(isFilled && order.filled_at ? order.filled_at : order.created_at)}
                   </div>
                 </div>

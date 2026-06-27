@@ -90,7 +90,7 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ fontSize: 22, fontWeight: 800, color: "white", letterSpacing: "-0.02em" }}>{stock.symbol}</div>
-            <div style={{ fontSize: 13, color: "rgba(232,234,240,0.45)", marginTop: 2 }}>{stock.company_name}</div>
+            <div style={{ fontSize: 13, color: "rgba(232,234,240,0.65)", marginTop: 2 }}>{stock.company_name}</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 22, fontWeight: 700, color: "white", fontFamily: "monospace" }}>${stock.price.toFixed(2)}</div>
@@ -103,7 +103,7 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
           <div style={{ marginTop: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(232,234,240,0.58)", marginBottom: 6, fontFamily: "monospace" }}>
               <span>L ${stock.low.toFixed(2)}</span>
-              <span style={{ color: "rgba(232,234,240,0.45)" }}>Day Range</span>
+              <span style={{ color: "rgba(232,234,240,0.65)" }}>Day Range</span>
               <span>H ${stock.high.toFixed(2)}</span>
             </div>
             <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, position: "relative" }}>
@@ -118,7 +118,7 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
       {holding && (
         <div style={{ margin: "12px 16px 0", padding: "10px 14px", background: "rgba(125,211,176,0.07)", border: "1px solid rgba(125,211,176,0.18)", borderRadius: 10, display: "flex", justifyContent: "space-between" }}>
           <span style={{ fontSize: 13, color: "#7dd3b0", fontWeight: 600 }}>You own {holding.shares.toFixed(0)} shares</span>
-          <span style={{ fontSize: 12, fontFamily: "monospace", color: "rgba(232,234,240,0.4)" }}>avg ${holding.avg_cost.toFixed(2)}</span>
+          <span style={{ fontSize: 12, fontFamily: "monospace", color: "rgba(232,234,240,0.60)" }}>avg ${holding.avg_cost.toFixed(2)}</span>
         </div>
       )}
 
@@ -160,7 +160,7 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
         {mode === "limit" && (
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "rgba(232,234,240,0.4)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "rgba(232,234,240,0.60)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
                 {action === "buy" ? "Buy when price ≤" : "Sell when price ≥"}
               </label>
               <button onClick={() => setLimitPriceInput(stock.price.toFixed(2))}
@@ -169,7 +169,7 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
               </button>
             </div>
             <div style={{ position: "relative" }}>
-              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: "rgba(232,234,240,0.4)", fontFamily: "monospace" }}>$</span>
+              <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: "rgba(232,234,240,0.60)", fontFamily: "monospace" }}>$</span>
               <input type="number" value={limitPriceInput} onChange={e => { setLimitPriceInput(e.target.value); reset(); }}
                 step="0.01" min="0.01"
                 style={{ width: "100%", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(251,191,36,0.25)", borderRadius: 12, padding: "12px 16px 12px 28px", fontSize: 20, fontFamily: "monospace", fontWeight: 700, color: "#fbbf24", outline: "none", boxSizing: "border-box" }} />
@@ -187,7 +187,7 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
         {/* Shares input */}
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: "rgba(232,234,240,0.4)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Shares</label>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "rgba(232,234,240,0.60)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Shares</label>
             <span style={{ fontSize: 12, color: "rgba(232,234,240,0.52)", fontFamily: "monospace" }}>Max: {action === "buy" ? maxBuyShares : maxSellShares}</span>
           </div>
           <input type="number" value={sharesInput} onChange={e => { setSharesInput(e.target.value); setError(null); setSuccess(null); }}
@@ -196,7 +196,7 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
             {[["25%", 0.25], ["50%", 0.5], ["75%", 0.75], ["Max", 1]].map(([label, pct]) => (
               <button key={label as string} onClick={() => setPercent(pct as number)}
-                style={{ flex: 1, padding: "8px 0", fontSize: 12, fontWeight: 600, color: "rgba(232,234,240,0.4)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, cursor: "pointer" }}>
+                style={{ flex: 1, padding: "8px 0", fontSize: 12, fontWeight: 600, color: "rgba(232,234,240,0.60)", background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, cursor: "pointer" }}>
                 {label as string}
               </button>
             ))}
@@ -211,14 +211,14 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
               [mode === "limit" ? "Limit price" : "Price per share", `$${price.toFixed(2)}`],
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                <span style={{ fontSize: 13, color: "rgba(232,234,240,0.4)" }}>{k}</span>
+                <span style={{ fontSize: 13, color: "rgba(232,234,240,0.60)" }}>{k}</span>
                 <span style={{ fontSize: 13, fontFamily: "monospace", color: mode === "limit" && k === "Limit price" ? "#fbbf24" : "rgba(232,234,240,0.7)" }}>{v}</span>
               </div>
             ))}
             <div style={{ height: 1, background: "rgba(255,255,255,0.06)", margin: "4px 0 10px" }} />
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: "rgba(232,234,240,0.5)" }}>Est. Total</span>
-              <span style={{ fontSize: 18, fontFamily: "monospace", fontWeight: 700, color: shares > 0 ? "white" : "rgba(232,234,240,0.45)" }}>
+              <span style={{ fontSize: 18, fontFamily: "monospace", fontWeight: 700, color: shares > 0 ? "white" : "rgba(232,234,240,0.65)" }}>
                 {shares > 0 ? formatCurrency(total) : "—"}
               </span>
             </div>

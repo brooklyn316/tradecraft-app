@@ -75,7 +75,7 @@ function DiversifyPicker({ stocks, holdings, onSelectSymbol }: {
 
   return (
     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+      <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
         Diversification ideas
       </div>
       {picks.map(p => {
@@ -112,7 +112,7 @@ function DiversifyPicker({ stocks, holdings, onSelectSymbol }: {
           </div>
         );
       })}
-      <div style={{ fontSize: 9, color: "rgba(232,234,240,0.4)", paddingTop: 2 }}>
+      <div style={{ fontSize: 9, color: "rgba(232,234,240,0.60)", paddingTop: 2 }}>
         Green dot = sector you don&apos;t currently hold · sorted by diversification potential
       </div>
     </div>
@@ -222,7 +222,7 @@ export default function AIAdvisor({ participant, holdings, stocks, recentTrades,
             <div style={{ fontSize: 10, color: "rgba(232,234,240,0.5)" }}>Powered by Claude</div>
           </div>
         </div>
-        <p style={{ fontSize: 11, color: "rgba(232,234,240,0.32)", lineHeight: 1.55, margin: 0 }}>
+        <p style={{ fontSize: 11, color: "rgba(232,234,240,0.52)", lineHeight: 1.55, margin: 0 }}>
           Analyses your positions, cash, market conditions, and recent trades — then tells you what to do next.
         </p>
       </div>
@@ -236,7 +236,7 @@ export default function AIAdvisor({ participant, holdings, stocks, recentTrades,
 
             {/* Portfolio snapshot */}
             <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "12px 14px" }}>
-              <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>What Claude will analyse</div>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>What Claude will analyse</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
                 {[
                   ["Total portfolio",   `$${totalValue.toFixed(2)} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(1)}%)`],
@@ -257,16 +257,16 @@ export default function AIAdvisor({ participant, holdings, stocks, recentTrades,
               style={{ width: "100%", padding: "14px 0", borderRadius: 12,
                 background: remaining === 0 ? "rgba(255,255,255,0.03)" : "linear-gradient(135deg,rgba(125,211,176,0.15),rgba(74,222,128,0.08))",
                 border: `1px solid ${remaining === 0 ? "rgba(255,255,255,0.08)" : "rgba(125,211,176,0.28)"}`,
-                color: remaining === 0 ? "rgba(232,234,240,0.3)" : "#7dd3b0",
+                color: remaining === 0 ? "rgba(232,234,240,0.50)" : "#7dd3b0",
                 fontSize: 14, fontWeight: 700, cursor: remaining === 0 ? "not-allowed" : "pointer", letterSpacing: "-0.01em", transition: "all 0.2s" }}>
               ✦ Analyse My Portfolio
             </button>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ margin: 0, fontSize: 10, color: "rgba(232,234,240,0.4)", lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: 10, color: "rgba(232,234,240,0.60)", lineHeight: 1.5 }}>
                 For entertainment only · Not financial advice
               </p>
-              <span style={{ fontSize: 10, color: remaining === 0 ? "#f87171" : "rgba(232,234,240,0.4)", fontFamily: "monospace", flexShrink: 0 }}>
+              <span style={{ fontSize: 10, color: remaining === 0 ? "#f87171" : "rgba(232,234,240,0.60)", fontFamily: "monospace", flexShrink: 0 }}>
                 {remaining !== null ? `${remaining}/${AI_LIMITS.advisor} left today` : `${AI_LIMITS.advisor}/day`}
               </span>
             </div>
@@ -299,7 +299,7 @@ export default function AIAdvisor({ participant, holdings, stocks, recentTrades,
           <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
             <div style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.18)", borderRadius: 12, padding: "12px 14px" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#f87171", marginBottom: 5 }}>Analysis failed</div>
-              <div style={{ fontSize: 11, color: "rgba(232,234,240,0.4)", lineHeight: 1.5 }}>{error}</div>
+              <div style={{ fontSize: 11, color: "rgba(232,234,240,0.60)", lineHeight: 1.5 }}>{error}</div>
               {error.includes("ANTHROPIC_API_KEY") && (
                 <div style={{ marginTop: 10, fontSize: 11, color: "rgba(232,234,240,0.58)", lineHeight: 1.6, background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "8px 10px" }}>
                   Add <code style={{ color: "#7dd3b0", fontSize: 10 }}>ANTHROPIC_API_KEY=your_key</code> to your <code style={{ color: "#7dd3b0", fontSize: 10 }}>.env.local</code> and Vercel environment variables, then redeploy.
@@ -326,7 +326,7 @@ export default function AIAdvisor({ participant, holdings, stocks, recentTrades,
             </div>
 
             {/* Section header */}
-            <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.1em", paddingTop: 4 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.1em", paddingTop: 4 }}>
               Recommendations
             </div>
 
@@ -349,7 +349,7 @@ export default function AIAdvisor({ participant, holdings, stocks, recentTrades,
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                       <div style={{ width: 6, height: 6, borderRadius: "50%", background: PRIORITY_COLOR[s.priority] ?? "#fbbf24" }} />
-                      <span style={{ fontSize: 9, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.priority}</span>
+                      <span style={{ fontSize: 9, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.priority}</span>
                     </div>
                   </div>
 
@@ -357,7 +357,7 @@ export default function AIAdvisor({ participant, holdings, stocks, recentTrades,
                   <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(232,234,240,0.75)", lineHeight: 1.35 }}>{s.title}</div>
 
                   {/* Reason */}
-                  <p style={{ fontSize: 11, color: "rgba(232,234,240,0.38)", lineHeight: 1.6, margin: 0 }}>{s.reason}</p>
+                  <p style={{ fontSize: 11, color: "rgba(232,234,240,0.58)", lineHeight: 1.6, margin: 0 }}>{s.reason}</p>
 
                   {/* CTA — BUY: jump to stock */}
                   {s.symbol && s.action === "BUY" && (
@@ -399,10 +399,10 @@ export default function AIAdvisor({ participant, holdings, stocks, recentTrades,
             </button>
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ margin: 0, fontSize: 10, color: "rgba(232,234,240,0.4)" }}>
+              <p style={{ margin: 0, fontSize: 10, color: "rgba(232,234,240,0.60)" }}>
                 For entertainment only · Not financial advice
               </p>
-              <span style={{ fontSize: 10, color: remaining === 0 ? "#f87171" : "rgba(232,234,240,0.4)", fontFamily: "monospace" }}>
+              <span style={{ fontSize: 10, color: remaining === 0 ? "#f87171" : "rgba(232,234,240,0.60)", fontFamily: "monospace" }}>
                 {remaining !== null ? `${remaining}/${AI_LIMITS.advisor} left today` : ""}
               </span>
             </div>

@@ -96,7 +96,7 @@ export default function TickerBar({ stocks, onSelect }: TickerBarProps) {
               </span>
               <span style={{
                 fontSize: 10, fontFamily: "monospace",
-                color: "rgba(232,234,240,0.45)",
+                color: "rgba(232,234,240,0.65)",
                 pointerEvents: "none",
               }}>
                 ${stock.price.toFixed(2)}

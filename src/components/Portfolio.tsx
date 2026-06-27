@@ -89,13 +89,13 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
         <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: isPositive ? "#4ade80" : "#f87171" }}>
           <span>{isPositive ? "▲" : "▼"}</span>
           <AnimatedNumber value={Math.abs(totalReturn)} format={formatCurrency} />
-          <span style={{ color: "rgba(232,234,240,0.45)" }}>·</span>
+          <span style={{ color: "rgba(232,234,240,0.65)" }}>·</span>
           <AnimatedNumber value={totalReturnPct} format={v => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`} />
         </div>
 
         {/* Cash / Stocks bar */}
         <div style={{ marginTop: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "rgba(232,234,240,0.45)", marginBottom: 5, fontFamily: "monospace" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "rgba(232,234,240,0.65)", marginBottom: 5, fontFamily: "monospace" }}>
             <span>Cash {cashPct.toFixed(0)}%</span>
             <span>Stocks {(100 - cashPct).toFixed(0)}%</span>
           </div>
@@ -109,7 +109,7 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
         <div style={{ marginTop: 10, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.15)", borderRadius: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />
-            <span style={{ fontSize: 11, color: "rgba(232,234,240,0.45)" }}>Cash available</span>
+            <span style={{ fontSize: 11, color: "rgba(232,234,240,0.65)" }}>Cash available</span>
           </div>
           <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 700, color: "white" }}>{formatCurrency(participant.cash_balance)}</span>
         </div>
@@ -118,7 +118,7 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
       {/* ── Analytics block ── */}
       {enrichedHoldings.length > 0 && (
         <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.05)", flexShrink: 0 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Performance Stats</div>
+          <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 8 }}>Performance Stats</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
 
             {/* Win rate */}
@@ -164,16 +164,16 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
       {/* ── Holdings list ── */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         <div style={{ padding: "8px 16px 4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Holdings</span>
-          <span style={{ fontSize: 9, color: "rgba(232,234,240,0.4)" }}>{enrichedHoldings.length} position{enrichedHoldings.length !== 1 ? "s" : ""}</span>
+          <span style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.65)", textTransform: "uppercase", letterSpacing: "0.1em" }}>Holdings</span>
+          <span style={{ fontSize: 9, color: "rgba(232,234,240,0.60)" }}>{enrichedHoldings.length} position{enrichedHoldings.length !== 1 ? "s" : ""}</span>
         </div>
 
         {enrichedHoldings.length === 0 ? (
           <div style={{ padding: "40px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
             <div style={{ width: 48, height: 48, borderRadius: 16, background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📊</div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.45)", fontWeight: 500 }}>No positions yet</div>
-              <div style={{ fontSize: 11, color: "rgba(232,234,240,0.45)", marginTop: 4 }}>Buy your first stock to get started</div>
+              <div style={{ fontSize: 13, color: "rgba(232,234,240,0.65)", fontWeight: 500 }}>No positions yet</div>
+              <div style={{ fontSize: 11, color: "rgba(232,234,240,0.65)", marginTop: 4 }}>Buy your first stock to get started</div>
             </div>
           </div>
         ) : (
@@ -195,7 +195,7 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
                           {h.pnl >= 0 ? "+" : ""}{h.pnlPercent.toFixed(1)}%
                         </span>
                       </div>
-                      <div style={{ fontSize: 10, color: "rgba(232,234,240,0.45)", marginTop: 2 }}>
+                      <div style={{ fontSize: 10, color: "rgba(232,234,240,0.65)", marginTop: 2 }}>
                         {h.shares.toFixed(0)} shares
                       </div>
                     </div>
@@ -211,12 +211,12 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7,
                     padding: "5px 8px", borderRadius: 6, background: "rgba(255,255,255,0.025)" }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 8, color: "rgba(232,234,240,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 1 }}>Bought</div>
+                      <div style={{ fontSize: 8, color: "rgba(232,234,240,0.55)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 1 }}>Bought</div>
                       <div style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 600, color: "rgba(232,234,240,0.6)" }}>${h.avg_cost.toFixed(2)}</div>
                     </div>
                     <div style={{ fontSize: 14, color: h.pnl >= 0 ? "rgba(74,222,128,0.5)" : "rgba(248,113,113,0.5)" }}>→</div>
                     <div style={{ flex: 1, textAlign: "right" }}>
-                      <div style={{ fontSize: 8, color: "rgba(232,234,240,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 1 }}>Now</div>
+                      <div style={{ fontSize: 8, color: "rgba(232,234,240,0.55)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 1 }}>Now</div>
                       <div style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: h.pnl >= 0 ? "#4ade80" : "#f87171" }}>${h.price.toFixed(2)}</div>
                     </div>
                   </div>
@@ -228,7 +228,7 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
                         background: h.pnl >= 0 ? "#4ade80" : "#f87171",
                         opacity: 0.45 }} />
                     </div>
-                    <span style={{ fontSize: 9, fontFamily: "monospace", color: "rgba(232,234,240,0.4)" }}>{allocationPct.toFixed(1)}%</span>
+                    <span style={{ fontSize: 9, fontFamily: "monospace", color: "rgba(232,234,240,0.60)" }}>{allocationPct.toFixed(1)}%</span>
                   </div>
                 </button>
               );

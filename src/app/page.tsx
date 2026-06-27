@@ -67,7 +67,7 @@ export default function LoginPage() {
           </div>
           <span className="text-white font-semibold tracking-tight text-lg">Tradecraft</span>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-[rgba(232,234,240,0.4)]">
+        <div className="flex items-center gap-1.5 text-xs text-[rgba(232,234,240,0.60)]">
           <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80] live-dot inline-block" />
           Markets live
         </div>
@@ -96,7 +96,7 @@ export default function LoginPage() {
               Trade stocks.<br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#7dd3b0] to-[#4ade80]">Beat the market.</span>
             </h1>
-            <p className="text-[rgba(232,234,240,0.45)] text-base leading-relaxed">
+            <p className="text-[rgba(232,234,240,0.65)] text-base leading-relaxed">
               Start with $10,000 of virtual cash. Compete against friends or bots. See who comes out on top.
             </p>
           </div>
@@ -121,7 +121,7 @@ export default function LoginPage() {
                   key={m}
                   onClick={() => { setMode(m); setError(null); }}
                   className={`flex-1 py-3.5 text-sm font-medium transition-all relative ${
-                    mode === m ? "text-white" : "text-[rgba(232,234,240,0.35)] hover:text-[rgba(232,234,240,0.6)]"
+                    mode === m ? "text-white" : "text-[rgba(232,234,240,0.55)] hover:text-[rgba(232,234,240,0.6)]"
                   }`}
                 >
                   {m === "login" ? "Sign in" : "Create account"}
@@ -135,7 +135,7 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {mode === "signup" && (
                 <div>
-                  <label className="block text-[10px] font-medium text-[rgba(232,234,240,0.4)] uppercase tracking-widest mb-2">Username</label>
+                  <label className="block text-[10px] font-medium text-[rgba(232,234,240,0.60)] uppercase tracking-widest mb-2">Username</label>
                   <input
                     type="text" value={username} onChange={(e) => setUsername(e.target.value)}
                     placeholder="your_handle" required
@@ -144,7 +144,7 @@ export default function LoginPage() {
                 </div>
               )}
               <div>
-                <label className="block text-[10px] font-medium text-[rgba(232,234,240,0.4)] uppercase tracking-widest mb-2">Email</label>
+                <label className="block text-[10px] font-medium text-[rgba(232,234,240,0.60)] uppercase tracking-widest mb-2">Email</label>
                 <input
                   type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com" required
@@ -152,7 +152,7 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-medium text-[rgba(232,234,240,0.4)] uppercase tracking-widest mb-2">Password</label>
+                <label className="block text-[10px] font-medium text-[rgba(232,234,240,0.60)] uppercase tracking-widest mb-2">Password</label>
                 <input
                   type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••" required minLength={6}
@@ -187,7 +187,7 @@ export default function LoginPage() {
             </form>
           </div>
 
-          <p className="text-center text-[10px] text-[rgba(232,234,240,0.45)] mt-6">
+          <p className="text-center text-[10px] text-[rgba(232,234,240,0.65)] mt-6">
             Market data by Alpha Vantage · For entertainment only
           </p>
         </div>

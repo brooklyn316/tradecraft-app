@@ -128,7 +128,7 @@ export default function StockList({ stocks, selectedSymbol, onSelect, watchedSym
           {onToggleWatch && (
             <button onClick={e => { e.stopPropagation(); onToggleWatch(stock.symbol); }}
               style={{ background:"none", border:"none", cursor:"pointer", fontSize:15, padding:"2px 4px", borderRadius:4, lineHeight:1,
-                color: watchedSymbols.includes(stock.symbol) ? "#7dd3b0" : "rgba(232,234,240,0.45)" }}>
+                color: watchedSymbols.includes(stock.symbol) ? "#7dd3b0" : "rgba(232,234,240,0.65)" }}>
               ★
             </button>
           )}
@@ -169,7 +169,7 @@ export default function StockList({ stocks, selectedSymbol, onSelect, watchedSym
           {stocks.length > 10 && (
             <button onClick={() => setShowAll(v => !v)}
               style={{ width:"100%", padding:"10px 16px", border:"none", background:"rgba(255,255,255,0.03)", cursor:"pointer", fontSize:12, fontWeight:600,
-                color:"rgba(232,234,240,0.4)", borderTop:"1px solid rgba(255,255,255,0.05)", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                color:"rgba(232,234,240,0.60)", borderTop:"1px solid rgba(255,255,255,0.05)", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
               {showAll ? "▲ Show less" : `▼ Show all ${stocks.length} stocks`}
             </button>
           )}

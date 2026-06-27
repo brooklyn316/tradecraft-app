@@ -101,6 +101,7 @@ export default function DashboardPage() {
         participant_id:  p.id,
         user_id:         p.user_id,
         is_bot:          p.is_bot,
+        bot_strategy:    p.bot_strategy,
         username:        p.username,
         cash_balance:    p.cash_balance,
         portfolio_value: portfolioValue,
@@ -165,13 +166,19 @@ export default function DashboardPage() {
               holdingsByParticipant[h.participant_id].push({ symbol: h.symbol, shares: h.shares });
             }
 
+            const BOT_DISPLAY_NAMES: Record<string, string> = {
+              index:    "The Indexer",
+              momentum: "Surge",
+              random:   "Wildcard",
+            };
+
             const snapshots: ParticipantSnapshot[] = (participants as any[]).map(p => ({
               id:           p.id,
               user_id:      p.user_id,
               is_bot:       p.is_bot,
               bot_strategy: p.bot_strategy,
               username:     p.is_bot
-                              ? (p.bot_strategy ? p.bot_strategy.charAt(0).toUpperCase() + p.bot_strategy.slice(1) + " Bot" : "Bot")
+                              ? (BOT_DISPLAY_NAMES[p.bot_strategy] ?? "Bot")
                               : ((p.profiles as any)?.username ?? "Player"),
               cash_balance: p.cash_balance,
               holdings:     holdingsByParticipant[p.id] ?? [],

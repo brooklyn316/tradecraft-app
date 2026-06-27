@@ -117,6 +117,7 @@ export type LeaderboardEntry = {
   participant_id: string;
   user_id: string | null;
   is_bot: boolean;
+  bot_strategy: string | null;
   username: string;
   cash_balance: number;
   portfolio_value: number;

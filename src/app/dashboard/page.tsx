@@ -461,8 +461,8 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Bottom section — 45% of center column, row: [tabs | news] */}
-          <div style={{ flex:"0 0 45%", display:"flex", flexDirection:"row", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
+          {/* Bottom section — 40% of center column, row: [tabs | news] */}
+          <div style={{ flex:"0 0 40%", display:"flex", flexDirection:"row", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
 
           {/* Left: tab bar + content */}
           <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflow:"hidden" }}>

@@ -24,6 +24,7 @@ import LimitOrders      from "@/components/LimitOrders";
 import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
 import StockPredict     from "@/components/StockPredict";
+import StockSearch      from "@/components/StockSearch";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders";
@@ -243,6 +244,20 @@ export default function DashboardPage() {
   const handleTickerSelect = useCallback((stock: StockPrice) => {
     setSelectedStock(stock);
   }, []);
+
+  const handleSymbolSearch = useCallback(async (symbol: string, companyName: string) => {
+    // Use existing data if we already have it
+    const existing = stocks.find(s => s.symbol === symbol);
+    if (existing) { setSelectedStock(existing); return; }
+    // Fetch live price for stocks not in our default list
+    try {
+      const res = await fetch(`/api/stock-price?symbol=${encodeURIComponent(symbol)}`);
+      const data = await res.json();
+      if (data.price) setSelectedStock(data as StockPrice);
+    } catch (err) {
+      console.error("Failed to fetch price for", symbol, err);
+    }
+  }, [stocks]);
 
   const selectedHolding = selectedStock
     ? holdings.find(h => h.symbol === selectedStock.symbol) ?? null
@@ -784,6 +799,11 @@ export default function DashboardPage() {
               }}>{label}</button>
             ))}
           </div>
+
+          {/* Stock search — pinned above content, only visible in Trade tab */}
+          {rightTab === "trade" && (
+            <StockSearch onSelect={handleSymbolSearch} />
+          )}
 
           {/* Content */}
           <div style={{ flex:1, overflowY:"auto" }}>

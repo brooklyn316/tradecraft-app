@@ -23,10 +23,11 @@ import Watchlist        from "@/components/Watchlist";
 import LimitOrders      from "@/components/LimitOrders";
 import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
+import StockPredict     from "@/components/StockPredict";
 
-type CenterTab  = "chart" | "history";
-type RightTab   = "watchlist" | "limits" | "alerts" | "ai" | null;
-type BottomPanel = "leaderboard" | "bots" | null;
+type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity";
+type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders";
+type NewsTab   = "news" | "sectors";
 
 interface ParticipantSnapshot {
   id: string;
@@ -37,7 +38,6 @@ interface ParticipantSnapshot {
   cash_balance: number;
   holdings: { symbol: string; shares: number }[];
 }
-
 
 export default function DashboardPage() {
   const supabase = getSupabaseClient();
@@ -62,21 +62,28 @@ export default function DashboardPage() {
   const [trades, setTrades]             = useState<Trade[]>([]);
   const [leaderboard, setLeaderboard]   = useState<LeaderboardEntry[]>([]);
   const [participantSnapshots, setParticipantSnapshots] = useState<ParticipantSnapshot[]>([]);
+  const [watchlistSymbols, setWatchlistSymbols] = useState<Set<string>>(new Set());
+  const [activityFeed, setActivityFeed] = useState<Array<{
+    username: string; is_bot: boolean; symbol: string;
+    action: string; shares: number; price: number; executed_at: string;
+  }>>([]);
   const [loading, setLoading]           = useState(true);
   const [refreshKey, setRefreshKey]     = useState(0);
 
   // ── UI ────────────────────────────────────────────────────
   const [selectedStock, setSelectedStock] = useState<StockPrice | null>(null);
-  const [centerTab, setCenterTab]         = useState<CenterTab>("chart");
-  const [rightTab,  setRightTab]          = useState<RightTab>(null);
-  const [bottomPanel, setBottomPanel]     = useState<BottomPanel>(null);
+  const [bottomTab, setBottomTab]         = useState<BottomTab>("competition");
+  const [rightTab,  setRightTab]          = useState<RightTab>("trade");
+  const [newsTab,   setNewsTab]           = useState<NewsTab>("news");
+  const [predictStock, setPredictStock]   = useState<{ symbol: string; price: number } | null>(null);
+  const [copied, setCopied]               = useState(false);
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const participant   = competitions[activeIdx] ?? null;
   const competition   = participant?.competition ?? null;
   const participantId = participant?.id ?? null;
 
-  // ── Live leaderboard: recalculates whenever prices update ─
+  // ── Live leaderboard ──────────────────────────────────────
   useEffect(() => {
     if (!participantSnapshots.length || !stocks.length || !competition) return;
     const priceMap = Object.fromEntries(stocks.map(s => [s.symbol, s.price]));
@@ -116,6 +123,15 @@ export default function DashboardPage() {
       ]);
       setStocks(allStocks);
 
+      // Load watchlist symbols for Watch Picks
+      if (userId) {
+        const { data: wl } = await supabase
+          .from("watchlist")
+          .select("symbol")
+          .eq("user_id", userId);
+        setWatchlistSymbols(new Set((wl ?? []).map((w: any) => w.symbol)));
+      }
+
       const active = (comps as any[]).filter(c => c.competition?.status === "active");
       setCompetitions(active as any);
 
@@ -128,7 +144,6 @@ export default function DashboardPage() {
         setHoldings(h as Holding[]);
         setTrades(t as Trade[]);
 
-        // Batch-load all participants + their holdings for live leaderboard
         if (cid) {
           const { data: participants } = await supabase
             .from("competition_participants")
@@ -159,6 +174,29 @@ export default function DashboardPage() {
               holdings:     holdingsByParticipant[p.id] ?? [],
             }));
             setParticipantSnapshots(snapshots);
+
+            // Activity feed: last 60 trades across all participants
+            const { data: feedTrades } = await supabase
+              .from("trades")
+              .select("participant_id, symbol, action, shares, price, executed_at")
+              .in("participant_id", participants.map((p: any) => p.id))
+              .order("executed_at", { ascending: false })
+              .limit(60);
+
+            const usernameMap: Record<string, { username: string; is_bot: boolean }> = {};
+            for (const snap of snapshots) usernameMap[snap.id] = { username: snap.username, is_bot: snap.is_bot };
+
+            setActivityFeed(
+              (feedTrades ?? []).map((t: any) => ({
+                username: usernameMap[t.participant_id]?.username ?? "Unknown",
+                is_bot:   usernameMap[t.participant_id]?.is_bot ?? false,
+                symbol:   t.symbol,
+                action:   t.action,
+                shares:   t.shares,
+                price:    t.price,
+                executed_at: t.executed_at,
+              }))
+            );
           }
         }
       }
@@ -186,7 +224,6 @@ export default function DashboardPage() {
     window.location.href = "/";
   }, [supabase]);
 
-  const [copied, setCopied] = useState(false);
   const handleCopyInvite = useCallback(() => {
     if (!competition?.invite_code) return;
     const url = `${window.location.origin}/join/${competition.invite_code}`;
@@ -241,6 +278,65 @@ export default function DashboardPage() {
 
   const spy = stocks.find(s => s.symbol === "SPY");
 
+  // ── Time helper ───────────────────────────────────────────
+  function timeAgo(iso: string) {
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }
+
+  // ── Shared button styles ──────────────────────────────────
+  const tabBtn = (active: boolean): React.CSSProperties => ({
+    padding: "10px 14px",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer",
+    border: "none",
+    background: "transparent",
+    whiteSpace: "nowrap",
+    letterSpacing: "0.04em",
+    color: active ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+    borderBottom: active ? "2px solid #7dd3b0" : "2px solid transparent",
+    transition: "all 0.15s",
+  });
+
+  // ── Movers helper ─────────────────────────────────────────
+  const MoverRow = ({ s }: { s: StockPrice }) => {
+    const up = (s.change_percent ?? 0) >= 0;
+    return (
+      <div style={{ display:"flex", alignItems:"center", padding:"7px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)", gap:8 }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <span style={{ fontSize:12, fontWeight:800, marginRight:6, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</span>
+          <span style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</span>
+        </div>
+        <span style={{ fontSize:12, fontWeight:700, color: up ? "#4ade80" : "#f87171", flexShrink:0 }}>
+          {up ? "+" : ""}{(s.change_percent ?? 0).toFixed(2)}%
+        </span>
+        <button
+          onClick={() => setSelectedStock(s)}
+          style={{ padding:"2px 7px", fontSize:10, borderRadius:4, cursor:"pointer",
+            background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(232,234,240,0.6)", flexShrink:0 }}
+        >Chart</button>
+        <button
+          onClick={() => setPredictStock({ symbol: s.symbol, price: s.price })}
+          style={{ padding:"2px 7px", fontSize:10, borderRadius:4, cursor:"pointer",
+            background:"rgba(125,211,176,0.08)", border:"1px solid rgba(125,211,176,0.25)", color:"#7dd3b0", flexShrink:0 }}
+        >Predict</button>
+      </div>
+    );
+  };
+
+  const sortedStocks = [...stocks].filter(s => s.change_percent != null);
+  const gainers    = [...sortedStocks].sort((a, b) => (b.change_percent ?? 0) - (a.change_percent ?? 0)).slice(0, 8);
+  const losers     = [...sortedStocks].sort((a, b) => (a.change_percent ?? 0) - (b.change_percent ?? 0)).slice(0, 8);
+  const watchPicks = [...sortedStocks]
+    .filter(s => watchlistSymbols.has(s.symbol))
+    .sort((a, b) => Math.abs(b.change_percent ?? 0) - Math.abs(a.change_percent ?? 0))
+    .slice(0, 6);
+
   return (
     <div style={{ minHeight:"100vh", background:"#060a14", color:"#e8eaf0", display:"flex", flexDirection:"column", overflow:"hidden", height:"100vh" }}>
 
@@ -257,52 +353,25 @@ export default function DashboardPage() {
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:8, marginRight:4, flexShrink:0 }}>
           <span style={{ color:"#7dd3b0", fontWeight:800, fontSize:17, letterSpacing:"-0.02em" }}>TC</span>
-          <span style={{ fontWeight:600, fontSize:13, color:"rgba(232,234,240,0.9)" }} className="hidden sm:block">Tradecraft</span>
+          <span style={{ fontWeight:600, fontSize:13, color:"rgba(232,234,240,0.9)" }}>Tradecraft</span>
         </div>
 
         <div style={{ display:"flex", gap:4, flex:1, overflowX:"auto" }}>
           {competitions.map((c, i) => (
-            <button
-              key={c.id}
-              onClick={() => setActiveIdx(i)}
-              style={{
-                padding: "5px 13px",
-                borderRadius: 8,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: "pointer",
-                border: activeIdx === i ? "1px solid rgba(125,211,176,0.35)" : "1px solid rgba(255,255,255,0.07)",
-                background: activeIdx === i ? "rgba(125,211,176,0.1)" : "rgba(255,255,255,0.03)",
-                color: activeIdx === i ? "#7dd3b0" : "rgba(232,234,240,0.5)",
-                whiteSpace: "nowrap",
-                transition: "all 0.15s",
-              }}
-            >
+            <button key={c.id} onClick={() => setActiveIdx(i)} style={{
+              padding: "5px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              border: activeIdx === i ? "1px solid rgba(125,211,176,0.35)" : "1px solid rgba(255,255,255,0.07)",
+              background: activeIdx === i ? "rgba(125,211,176,0.1)" : "rgba(255,255,255,0.03)",
+              color: activeIdx === i ? "#7dd3b0" : "rgba(232,234,240,0.5)",
+              whiteSpace: "nowrap", transition: "all 0.15s",
+            }}>
               {c.competition?.name ?? "Competition"}
             </button>
           ))}
         </div>
 
-        {competition?.mode === "friends" && competition?.invite_code && (
-          <button
-            onClick={handleCopyInvite}
-            style={{
-              display: "flex", alignItems: "center", gap: 5,
-              padding: "5px 11px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
-              border: "1px solid rgba(125,211,176,0.25)",
-              background: copied ? "rgba(125,211,176,0.15)" : "rgba(125,211,176,0.06)",
-              color: copied ? "#7dd3b0" : "rgba(125,211,176,0.7)",
-              transition: "all 0.2s", whiteSpace: "nowrap", flexShrink: 0,
-            }}
-          >
-            {copied ? "✓ Copied!" : "🔗 Invite friends"}
-          </button>
-        )}
-
-        <button
-          onClick={handleSignOut}
-          style={{ fontSize:11, color:"rgba(232,234,240,0.4)", background:"none", border:"none", cursor:"pointer", flexShrink:0, marginLeft:4 }}
-        >
+        <button onClick={handleSignOut}
+          style={{ fontSize:11, color:"rgba(232,234,240,0.4)", background:"none", border:"none", cursor:"pointer", flexShrink:0 }}>
           Sign out
         </button>
       </header>
@@ -313,255 +382,479 @@ export default function DashboardPage() {
       )}
 
       {/* ── Main layout ── */}
-      <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+      <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
 
-        {/* Left: Portfolio */}
-        <aside className="hidden lg:flex" style={{
-          width: 260,
-          borderRight: "1px solid rgba(255,255,255,0.06)",
-          overflowY: "auto",
-          flexShrink: 0,
-          flexDirection: "column",
-        }}>
-          {participant && (
-            <Portfolio
-              participant={participant}
-              holdings={holdings}
-              prices={stocks}
-              startingCash={competition?.starting_cash ?? 10000}
-              onSelectSymbol={(sym) => {
-                setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
-                setCenterTab("chart");
-              }}
-            />
-          )}
-        </aside>
-
-        {/* Center: Chart/History + bottom panels */}
+        {/* ══ CENTER: Chart + bottom tabs ══ */}
         <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
 
-          {/* Top tab bar: Chart | History */}
-          <div style={{
-            display:"flex", gap:0, padding:"0 12px",
-            borderBottom:"1px solid rgba(255,255,255,0.06)",
-            flexShrink:0, background:"rgba(255,255,255,0.01)",
-          }}>
-            {(["chart","history"] as CenterTab[]).map((key) => (
-              <button key={key} onClick={() => setCenterTab(key)} style={{
-                padding:"10px 14px", fontSize:12, fontWeight:600,
-                cursor:"pointer", border:"none", background:"transparent", whiteSpace:"nowrap",
-                color: centerTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
-                borderBottom: centerTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
-                transition:"all 0.15s", textTransform:"capitalize",
-              }}>{key === "chart" ? "Chart" : "History"}</button>
-            ))}
-          </div>
-
-          {/* Chart or History content */}
-          <div style={{ flex:"0 0 62%", overflow:"hidden", display:"flex", flexDirection:"column" }}>
-            {centerTab === "chart" && (
-              selectedStock ? (
-                <TradingChart
-                  key={selectedStock.symbol}
-                  symbol={selectedStock.symbol}
-                  companyName={selectedStock.company_name ?? selectedStock.symbol}
-                  currentPrice={selectedStock.price}
-                  changePercent={selectedStock.change_percent ?? 0}
-                  onBack={() => setSelectedStock(null)}
-                />
-              ) : spy ? (
-                <TradingChart
-                  key="overview-spy"
-                  symbol="SPY"
-                  companyName="SPDR S&P 500 ETF"
-                  currentPrice={spy.price}
-                  changePercent={spy.change_percent ?? 0}
-                  isOverview
-                />
-              ) : (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:360, color:"rgba(232,234,240,0.4)", fontSize:13 }}>
-                  Select a stock to view its chart
-                </div>
-              )
+          {/* Chart area — 62% of center column */}
+          <div style={{ flex:"0 0 62%", overflow:"hidden", position:"relative" }}>
+            {/* StockPredict overlay */}
+            {predictStock && (
+              <StockPredict
+                symbol={predictStock.symbol}
+                currentPrice={predictStock.price}
+                onClose={() => setPredictStock(null)}
+              />
             )}
-            {centerTab === "history" && participantId && (
-              <div style={{ padding:12, maxHeight:360, overflowY:"auto" }}>
-                <TradeHistory participantId={participantId} />
+
+            {selectedStock ? (
+              <TradingChart
+                key={selectedStock.symbol}
+                symbol={selectedStock.symbol}
+                companyName={selectedStock.company_name ?? selectedStock.symbol}
+                currentPrice={selectedStock.price}
+                changePercent={selectedStock.change_percent ?? 0}
+                onBack={() => setSelectedStock(null)}
+              />
+            ) : spy ? (
+              <TradingChart
+                key="overview-spy"
+                symbol="SPY"
+                companyName="SPDR S&P 500 ETF"
+                currentPrice={spy.price}
+                changePercent={spy.change_percent ?? 0}
+                isOverview
+              />
+            ) : (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"rgba(232,234,240,0.4)", fontSize:13 }}>
+                Select a stock to view its chart
               </div>
             )}
           </div>
 
-          {/* Bottom collapsible panels: Leaderboard | Bots */}
-          <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"column", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:36, background:"rgba(255,255,255,0.01)" }}>
-            {/* Panel toggle buttons */}
-            <div style={{ display:"flex", gap:0, padding:"0 12px", flexShrink:0 }}>
-              {([["leaderboard","Leaderboard"],["bots","Bots"]] as [BottomPanel & string, string][]).map(([key, label]) => (
-                <button key={key}
-                  onClick={() => setBottomPanel(p => p === key ? null : key)}
-                  style={{
-                    padding:"8px 14px", fontSize:11, fontWeight:600,
-                    cursor:"pointer", border:"none", background:"transparent",
-                    color: bottomPanel === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
-                    borderBottom: bottomPanel === key ? "2px solid #7dd3b0" : "2px solid transparent",
-                    transition:"all 0.15s",
-                  }}>
-                  {bottomPanel === key ? "▲" : "▼"} {label}
-                </button>
-              ))}
-            </div>
-            {/* Expanded panel content */}
-            {bottomPanel && (
-              <div style={{ flex:1, overflowY:"auto", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
-                {bottomPanel === "leaderboard" && competition && (
-                  <div style={{ padding:"0 12px 12px" }}>
-                    <Leaderboard
-                      entries={leaderboard}
-                      currentUserId={userId}
-                      startingCash={competition.starting_cash}
-                      endDate={competition.end_date}
-                      competitionId={competition.id}
-                      onBotsChanged={loadAll}
-                    />
-                  </div>
-                )}
-                {bottomPanel === "bots" && competition && (
-                  <div style={{ padding:"0 12px 12px" }}>
-                    <Leaderboard
-                      entries={leaderboard.filter(e => e.is_bot)}
-                      currentUserId={userId}
-                      startingCash={competition.starting_cash}
-                      endDate={competition.end_date}
-                      competitionId={competition.id}
-                      onBotsChanged={loadAll}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </main>
+          {/* Bottom section — 38% of center column, never overflows */}
+          <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"column", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
 
-        {/* News strip — between chart and right panel */}
-        <div style={{
-          width: 170,
-          borderLeft: "1px solid rgba(255,255,255,0.06)",
-          borderRight: "1px solid rgba(255,255,255,0.06)",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          flexShrink: 0,
-        }}>
-          {/* AI Advisor button */}
-          <button
-            onClick={() => setRightTab(t => t === "ai" ? null : "ai")}
-            style={{
-              margin:8, padding:"8px 0", borderRadius:8, flexShrink:0,
-              background: rightTab === "ai" ? "rgba(125,211,176,0.15)" : "rgba(255,255,255,0.04)",
-              border: `1px solid ${rightTab === "ai" ? "rgba(125,211,176,0.4)" : "rgba(255,255,255,0.1)"}`,
-              color: rightTab === "ai" ? "#7dd3b0" : "rgba(232,234,240,0.7)",
-              fontSize:11, fontWeight:700, cursor:"pointer", letterSpacing:"0.02em",
-              transition:"all 0.15s",
-            }}>
-            ✦ AI Advisor
-          </button>
-          {/* News feed */}
-          <div style={{ flex:1, overflowY:"auto" }}>
-            <NewsPanel
-              symbol={selectedStock?.symbol ?? "SPY"}
-              companyName={selectedStock?.company_name ?? selectedStock?.symbol ?? "S&P 500"}
-            />
-          </div>
-        </div>
-
-        {/* Right: Watchlist/Limits/Alerts/AI + Stock list + Trade panel */}
-        <aside style={{
-          width: 280,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          flexShrink: 0,
-        }}>
-          {/* Right tab bar */}
+          {/* Tab bar */}
           <div style={{
-            display:"flex", gap:0, flexShrink:0,
-            borderBottom:"1px solid rgba(255,255,255,0.06)",
-            background:"rgba(255,255,255,0.01)",
-            overflowX:"auto", scrollbarWidth:"none",
+            display: "flex",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: 0,
+            background: "rgba(255,255,255,0.01)",
+            overflowX: "auto",
+            scrollbarWidth: "none",
           }}>
             {([
-              ["watchlist","Watch"],
-              ["limits","Limits"],
-              ["alerts","Alerts"],
-              ["ai","Portfolio"],
-            ] as [NonNullable<RightTab>, string][]).map(([key, label]) => (
-              <button key={key}
-                onClick={() => setRightTab(t => t === key ? null : key)}
-                style={{
-                  padding:"9px 10px", fontSize:11, fontWeight:600,
-                  cursor:"pointer", border:"none", background:"transparent", whiteSpace:"nowrap",
-                  color: rightTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
-                  borderBottom: rightTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
-                  transition:"all 0.15s", flex:1,
-                }}>{label}</button>
+              ["competition", "COMPETITION"],
+              ["activity",    "⚡ ACTIVITY"],
+              ["markets",     "LIVE MARKETS"],
+              ["trending",    "TRENDING"],
+              ["watchlist",   "★ WATCHLIST"],
+              ["alerts",      "🔔 ALERTS"],
+            ] as [BottomTab, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => setBottomTab(key)} style={tabBtn(bottomTab === key)}>
+                {label}
+              </button>
             ))}
           </div>
 
-          {/* Tool panel (shown when a right tab is active) */}
-          {rightTab && (
-            <div style={{ flex:1, overflowY:"auto", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-              {rightTab === "watchlist" && userId && (
-                <div style={{ padding:8 }}>
-                  <Watchlist userId={userId} stocks={stocks}
-                    onSelect={(stock) => { setSelectedStock(stock); setCenterTab("chart"); }}
-                  />
-                </div>
-              )}
-              {rightTab === "limits" && participantId && (
-                <div style={{ padding:8 }}>
-                  <LimitOrders participantId={participantId} refreshKey={refreshKey} onOrderFilled={loadAll} />
-                </div>
-              )}
-              {rightTab === "alerts" && userId && (
-                <div style={{ padding:8 }}>
-                  <PriceAlerts userId={userId} stocks={stocks} refreshKey={refreshKey}
-                    onSelectSymbol={(sym) => { setSelectedStock(stocks.find(s => s.symbol === sym) ?? null); setCenterTab("chart"); }}
-                  />
-                </div>
-              )}
-              {rightTab === "ai" && participant && (
-                <div style={{ padding:8 }}>
-                  <AIAdvisor
-                    participant={participant} holdings={holdings} stocks={stocks}
-                    recentTrades={trades} startingCash={competition?.starting_cash ?? 10000}
-                    onSelectSymbol={(sym) => { setSelectedStock(stocks.find(s => s.symbol === sym) ?? null); setCenterTab("chart"); setRightTab(null); }}
-                  />
-                </div>
-              )}
-            </div>
-          )}
+          {/* Scrollable content inside the 38% section */}
+          <div style={{ flex:1, overflowY:"auto", minHeight:0 }}>
 
-          {/* Stock list — always shown when no right tab, shrinks when tool is open */}
-          {!rightTab && (
-            <div style={{ flex:1, overflowY:"auto" }}>
+            {bottomTab === "markets" && (
               <StockList
                 stocks={stocks}
                 selectedSymbol={selectedStock?.symbol ?? ""}
-                onSelect={(stock) => { setSelectedStock(stock); setCenterTab("chart"); }}
+                onSelect={(stock) => setSelectedStock(stock)}
               />
+            )}
+
+            {bottomTab === "trending" && (
+              <div style={{ display:"flex", height:"100%" }}>
+
+                {/* ── TOP GAINERS ── */}
+                <div style={{ flex:1, overflowY:"auto", borderRight:"1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ padding:"7px 10px 4px", fontSize:9, fontWeight:700, color:"#4ade80", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    ▲ Top Gainers
+                  </div>
+                  {gainers.map(s => (
+                    <div key={s.symbol} onClick={() => setSelectedStock(s)}
+                      style={{ display:"flex", alignItems:"center", padding:"7px 10px 7px 8px",
+                        borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer",
+                        borderLeft:"2px solid #4ade80", gap:6 }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</div>
+                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</div>
+                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#4ade80", flexShrink:0 }}>
+                        +{(s.change_percent ?? 0).toFixed(2)}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── TOP LOSERS ── */}
+                <div style={{ flex:1, overflowY:"auto", borderRight:"1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ padding:"7px 10px 4px", fontSize:9, fontWeight:700, color:"#f87171", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    ▼ Top Losers
+                  </div>
+                  {losers.map(s => (
+                    <div key={s.symbol} onClick={() => setSelectedStock(s)}
+                      style={{ display:"flex", alignItems:"center", padding:"7px 10px 7px 8px",
+                        borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer",
+                        borderLeft:"2px solid #f87171", gap:6 }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</div>
+                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</div>
+                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#f87171", flexShrink:0 }}>
+                        {(s.change_percent ?? 0).toFixed(2)}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* ── WATCH PICKS ── */}
+                <div style={{ flex:1, overflowY:"auto" }}>
+                  <div style={{ padding:"7px 10px 4px", fontSize:9, fontWeight:700, color:"#fbbf24", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    ★ Watch Picks
+                  </div>
+                  {watchPicks.length === 0 ? (
+                    <div style={{ padding:"12px 10px", fontSize:11, color:"rgba(232,234,240,0.3)", lineHeight:1.5 }}>
+                      Add stocks to your watchlist to see picks here
+                    </div>
+                  ) : watchPicks.map(s => {
+                    const up = (s.change_percent ?? 0) >= 0;
+                    return (
+                      <div key={s.symbol} onClick={() => setSelectedStock(s)}
+                        style={{ display:"flex", alignItems:"center", padding:"7px 10px",
+                          borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer", gap:7 }}>
+                        <div style={{ width:7, height:7, borderRadius:"50%", flexShrink:0,
+                          background: up ? "#4ade80" : "#f87171" }} />
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:12, fontWeight:800, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</div>
+                          <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</div>
+                        </div>
+                        <div style={{ textAlign:"right", flexShrink:0 }}>
+                          <div style={{ fontSize:9, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
+                            {up ? "↑ Buy" : "↓ Sell"} signal
+                          </div>
+                          <div style={{ fontSize:11, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
+                            {up ? "+" : ""}{(s.change_percent ?? 0).toFixed(2)}%
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+              </div>
+            )}
+
+            {bottomTab === "watchlist" && userId && (
+              <Watchlist
+                userId={userId}
+                stocks={stocks}
+                onSelect={(stock) => setSelectedStock(stock)}
+              />
+            )}
+
+            {bottomTab === "alerts" && userId && (
+              <PriceAlerts
+                userId={userId}
+                stocks={stocks}
+                refreshKey={refreshKey}
+                onSelectSymbol={(sym) => setSelectedStock(stocks.find(s => s.symbol === sym) ?? null)}
+              />
+            )}
+
+            {bottomTab === "competition" && competition && (
+              <Leaderboard
+                entries={leaderboard}
+                currentUserId={userId}
+                startingCash={competition.starting_cash}
+                endDate={competition.end_date}
+                competitionId={competition.id}
+                onBotsChanged={loadAll}
+              />
+            )}
+
+            {bottomTab === "activity" && (
+              <div>
+                {activityFeed.length === 0 ? (
+                  <div style={{ padding:24, textAlign:"center", color:"rgba(232,234,240,0.35)", fontSize:12 }}>
+                    No trades yet — be the first to make a move!
+                  </div>
+                ) : activityFeed.map((t, i) => {
+                  const buy = t.action === "buy";
+                  return (
+                    <div key={i} style={{
+                      display:"flex", alignItems:"center", padding:"7px 14px",
+                      borderBottom:"1px solid rgba(255,255,255,0.04)", gap:10,
+                    }}>
+                      {/* Colour dot */}
+                      <div style={{ width:7, height:7, borderRadius:"50%", flexShrink:0,
+                        background: buy ? "#4ade80" : "#f87171" }} />
+                      {/* Who */}
+                      <span style={{
+                        fontSize:11, fontWeight:700, flexShrink:0,
+                        color: t.is_bot ? "#a78bfa" : "rgba(232,234,240,0.9)",
+                      }}>{t.username}</span>
+                      {/* Action */}
+                      <span style={{ fontSize:11, color: buy ? "#4ade80" : "#f87171", fontWeight:600, flexShrink:0 }}>
+                        {buy ? "bought" : "sold"}
+                      </span>
+                      {/* Detail */}
+                      <span style={{ fontSize:11, fontWeight:800, color:"rgba(232,234,240,0.85)", flexShrink:0 }}>
+                        {t.shares}× {t.symbol}
+                      </span>
+                      <span style={{ fontSize:10, color:"rgba(232,234,240,0.4)", fontFamily:"monospace", flexShrink:0 }}>
+                        @ ${t.price.toFixed(2)}
+                      </span>
+                      {/* Click to chart */}
+                      <button
+                        onClick={() => setSelectedStock(stocks.find(s => s.symbol === t.symbol) ?? null)}
+                        style={{ padding:"1px 6px", fontSize:9, borderRadius:4, cursor:"pointer",
+                          background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)",
+                          color:"rgba(232,234,240,0.4)", flexShrink:0 }}
+                      >Chart</button>
+                      {/* Time — pushed right */}
+                      <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(232,234,240,0.3)", whiteSpace:"nowrap" }}>
+                        {timeAgo(t.executed_at)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+          </div>{/* end scrollable content */}
+          </div>{/* end 38% bottom section */}
+        </main>
+
+        {/* ══ NEWS PANEL ══ */}
+        <div style={{
+          width: 300,
+          borderLeft: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          flexShrink: 0,
+        }}>
+          {/* NEWS | SECTORS tabs */}
+          <div style={{
+            display: "flex",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: 0,
+            background: "rgba(255,255,255,0.01)",
+          }}>
+            {([["news","📰 NEWS"],["sectors","SECTORS"]] as [NewsTab, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => setNewsTab(key)} style={{
+                flex: 1,
+                padding: "10px 8px",
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                letterSpacing: "0.06em",
+                color: newsTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                borderBottom: newsTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
+                transition: "all 0.15s",
+              }}>{label}</button>
+            ))}
+          </div>
+
+          <div style={{ flex:1, overflowY:"auto" }}>
+            {newsTab === "news" ? (
+              <NewsPanel
+                symbol={selectedStock?.symbol ?? "SPY"}
+                companyName={selectedStock?.company_name ?? selectedStock?.symbol ?? "S&P 500"}
+              />
+            ) : (() => {
+              // Sector groups — average change_percent of member stocks
+              const SECTOR_GROUPS = [
+                { label: "Tech",        syms: ["AAPL","MSFT","GOOGL","AMD","NVDA","META","ADBE"] },
+                { label: "EV & Auto",   syms: ["TSLA","RIVN","F","GM"] },
+                { label: "E-commerce",  syms: ["AMZN","PYPL","COIN","UBER"] },
+                { label: "Streaming",   syms: ["NFLX","SNAP"] },
+                { label: "Index ETFs",  syms: ["SPY","QQQ"] },
+                { label: "Finance",     syms: ["JPM","V","MA","BAC","WFC"] },
+                { label: "Healthcare",  syms: ["JNJ","PFE","UNH"] },
+                { label: "Energy",      syms: ["XOM","CVX"] },
+                { label: "Consumer",    syms: ["WMT","KO","COST"] },
+              ];
+              const priceMap = Object.fromEntries(stocks.map(s => [s.symbol, s]));
+              const sectors = SECTOR_GROUPS.map(g => {
+                const members = g.syms.map(sym => priceMap[sym]).filter(Boolean);
+                if (!members.length) return null;
+                const avg = members.reduce((s, m) => s + (m.change_percent ?? 0), 0) / members.length;
+                return { label: g.label, avg };
+              }).filter((x): x is { label: string; avg: number } => x !== null);
+
+              return (
+                <div style={{ padding:"10px 0 0" }}>
+                  <div style={{ padding:"0 14px 8px", fontSize:9, fontWeight:700,
+                    color:"rgba(232,234,240,0.35)", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    Sector Performance
+                  </div>
+                  {sectors.map(({ label, avg }) => {
+                    const up = avg >= 0;
+                    const barW = Math.min(Math.abs(avg) / 4, 1) * 100; // cap at ±4%
+                    return (
+                      <div key={label} style={{ padding:"7px 14px 8px", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                          <span style={{ fontSize:12, fontWeight:600, color:"rgba(232,234,240,0.8)" }}>{label}</span>
+                          <span style={{ fontSize:13, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
+                            {up ? "+" : ""}{avg.toFixed(2)}%
+                          </span>
+                        </div>
+                        {/* Progress bar */}
+                        <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.06)" }}>
+                          <div style={{
+                            height:"100%", borderRadius:2, width:`${barW}%`,
+                            background: up ? "#4ade80" : "#f87171",
+                            transition:"width 0.4s ease",
+                          }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+
+        {/* ══ RIGHT PANEL: Trade / Portfolio / History / AI / Orders ══ */}
+        <aside style={{
+          width: 300,
+          borderLeft: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          flexShrink: 0,
+        }}>
+          {/* Tab bar */}
+          <div style={{
+            display: "flex",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: 0,
+            background: "rgba(255,255,255,0.01)",
+            overflowX: "auto",
+            scrollbarWidth: "none",
+          }}>
+            {([
+              ["trade",     "Trade"],
+              ["portfolio", "Portfolio"],
+              ["history",   "History"],
+              ["ai",        "✦ AI"],
+              ["orders",    "Orders"],
+            ] as [RightTab, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => setRightTab(key)} style={{
+                flex: 1,
+                padding: "10px 6px",
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                whiteSpace: "nowrap",
+                color: rightTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                borderBottom: rightTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
+                transition: "all 0.15s",
+              }}>{label}</button>
+            ))}
+          </div>
+
+          {/* Content */}
+          <div style={{ flex:1, overflowY:"auto" }}>
+
+            {rightTab === "trade" && (
+              selectedStock && participant ? (
+                <TradePanel
+                  stock={selectedStock}
+                  participant={participant}
+                  holding={selectedHolding}
+                  onTradeComplete={handleTradeComplete}
+                />
+              ) : (
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:120, color:"rgba(232,234,240,0.35)", fontSize:12 }}>
+                  Select a stock to trade
+                </div>
+              )
+            )}
+
+            {rightTab === "portfolio" && participant && (
+              <Portfolio
+                participant={participant}
+                holdings={holdings}
+                prices={stocks}
+                startingCash={competition?.starting_cash ?? 10000}
+                onSelectSymbol={(sym) => {
+                  setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                  setRightTab("trade");
+                }}
+              />
+            )}
+
+            {rightTab === "history" && participantId && (
+              <TradeHistory participantId={participantId} />
+            )}
+
+            {rightTab === "ai" && participant && (
+              <AIAdvisor
+                participant={participant}
+                holdings={holdings}
+                stocks={stocks}
+                recentTrades={trades}
+                startingCash={competition?.starting_cash ?? 10000}
+                onSelectSymbol={(sym) => {
+                  setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                  setRightTab("trade");
+                }}
+              />
+            )}
+
+            {rightTab === "orders" && participantId && (
+              <LimitOrders
+                participantId={participantId}
+                refreshKey={refreshKey}
+                onOrderFilled={loadAll}
+              />
+            )}
+
+          </div>
+
+          {/* Invite friends — pinned at bottom for friends competitions */}
+          {competition?.mode === "friends" && competition?.invite_code && (
+            <div style={{
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+              padding: "10px 14px",
+              flexShrink: 0,
+              background: "rgba(255,255,255,0.01)",
+            }}>
+              <div style={{ fontSize:9, fontWeight:700, color:"rgba(232,234,240,0.35)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:7 }}>
+                Invite Friends
+              </div>
+              <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:6 }}>
+                <div style={{
+                  flex:1, fontFamily:"monospace", fontSize:13, fontWeight:800, color:"#7dd3b0",
+                  letterSpacing:"0.12em", background:"rgba(125,211,176,0.05)",
+                  border:"1px solid rgba(125,211,176,0.15)", borderRadius:6, padding:"6px 8px",
+                }}>
+                  {competition.invite_code}
+                </div>
+                <button onClick={handleCopyInvite} style={{
+                  padding:"6px 12px", borderRadius:6, fontSize:11, fontWeight:700, cursor:"pointer",
+                  background: copied ? "rgba(125,211,176,0.2)" : "rgba(125,211,176,0.08)",
+                  border: `1px solid rgba(125,211,176,${copied ? "0.4" : "0.2"})`,
+                  color:"#7dd3b0", transition:"all 0.2s",
+                }}>
+                  {copied ? "✓" : "Copy"}
+                </button>
+              </div>
+              <button onClick={handleCopyInvite} style={{
+                width:"100%", padding:"7px", borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer",
+                background:"rgba(125,211,176,0.05)", border:"1px solid rgba(125,211,176,0.12)",
+                color:"rgba(125,211,176,0.65)",
+              }}>
+                🔗 Share Invite
+              </button>
             </div>
           )}
 
-          {/* Trade panel */}
-          {selectedStock && participant && (
-            <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)", flexShrink:0 }}>
-              <TradePanel
-                stock={selectedStock}
-                participant={participant}
-                holding={selectedHolding}
-                onTradeComplete={handleTradeComplete}
-              />
-            </div>
-          )}
         </aside>
 
       </div>

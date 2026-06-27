@@ -24,7 +24,9 @@ import LimitOrders      from "@/components/LimitOrders";
 import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
 
-type CenterTab = "history" | "leaderboard" | "news" | "ai" | "watchlist" | "limits" | "alerts";
+type CenterTab  = "chart" | "history";
+type RightTab   = "watchlist" | "limits" | "alerts" | "ai" | null;
+type BottomPanel = "leaderboard" | "bots" | null;
 
 interface ParticipantSnapshot {
   id: string;
@@ -36,15 +38,6 @@ interface ParticipantSnapshot {
   holdings: { symbol: string; shares: number }[];
 }
 
-const CENTER_TABS: [CenterTab, string][] = [
-  ["history",     "History"],
-  ["leaderboard", "Leaderboard"],
-  ["news",        "News"],
-  ["ai",          "AI"],
-  ["watchlist",   "Watchlist"],
-  ["limits",      "Limits"],
-  ["alerts",      "Alerts"],
-];
 
 export default function DashboardPage() {
   const supabase = getSupabaseClient();
@@ -74,7 +67,9 @@ export default function DashboardPage() {
 
   // ── UI ────────────────────────────────────────────────────
   const [selectedStock, setSelectedStock] = useState<StockPrice | null>(null);
-  const [centerTab, setCenterTab]         = useState<CenterTab>("history");
+  const [centerTab, setCenterTab]         = useState<CenterTab>("chart");
+  const [rightTab,  setRightTab]          = useState<RightTab>(null);
+  const [bottomPanel, setBottomPanel]     = useState<BottomPanel>(null);
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const participant   = competitions[activeIdx] ?? null;
@@ -317,12 +312,12 @@ export default function DashboardPage() {
         <TickerBar stocks={stocks} onSelect={handleTickerSelect} />
       )}
 
-      {/* ── Main 3-column layout ── */}
+      {/* ── Main layout ── */}
       <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
 
         {/* Left: Portfolio */}
         <aside className="hidden lg:flex" style={{
-          width: 280,
+          width: 260,
           borderRight: "1px solid rgba(255,255,255,0.06)",
           overflowY: "auto",
           flexShrink: 0,
@@ -336,176 +331,227 @@ export default function DashboardPage() {
               startingCash={competition?.starting_cash ?? 10000}
               onSelectSymbol={(sym) => {
                 setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                setCenterTab("chart");
               }}
             />
           )}
         </aside>
 
-        {/* Center: chart on top, tabs + content below */}
+        {/* Center: Chart/History + bottom panels */}
         <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
 
-          {/* Chart — always visible, SPY overview when no stock selected */}
-          <div style={{ flexShrink:0, borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
-            {selectedStock ? (
-              <TradingChart
-                key={selectedStock.symbol}
-                symbol={selectedStock.symbol}
-                companyName={selectedStock.company_name ?? selectedStock.symbol}
-                currentPrice={selectedStock.price}
-                changePercent={selectedStock.change_percent ?? 0}
-                onBack={() => setSelectedStock(null)}
-              />
-            ) : spy ? (
-              <TradingChart
-                key="overview-spy"
-                symbol="SPY"
-                companyName="SPDR S&P 500 ETF"
-                currentPrice={spy.price}
-                changePercent={spy.change_percent ?? 0}
-                isOverview
-              />
-            ) : (
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:260, color:"rgba(232,234,240,0.4)", fontSize:13 }}>
-                Select a stock to view its chart
-              </div>
-            )}
-          </div>
-
-          {/* Secondary tab bar */}
+          {/* Top tab bar: Chart | History */}
           <div style={{
-            display: "flex",
-            gap: 0,
-            padding: "0 12px",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            flexShrink: 0,
-            overflowX: "auto",
-            background: "rgba(255,255,255,0.01)",
-            scrollbarWidth: "none",
+            display:"flex", gap:0, padding:"0 12px",
+            borderBottom:"1px solid rgba(255,255,255,0.06)",
+            flexShrink:0, background:"rgba(255,255,255,0.01)",
           }}>
-            {CENTER_TABS.map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setCenterTab(key)}
-                style={{
-                  padding: "10px 12px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  border: "none",
-                  background: "transparent",
-                  whiteSpace: "nowrap",
-                  color: centerTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
-                  borderBottom: centerTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
-                  transition: "all 0.15s",
-                }}
-              >
-                {label}
-              </button>
+            {(["chart","history"] as CenterTab[]).map((key) => (
+              <button key={key} onClick={() => setCenterTab(key)} style={{
+                padding:"10px 14px", fontSize:12, fontWeight:600,
+                cursor:"pointer", border:"none", background:"transparent", whiteSpace:"nowrap",
+                color: centerTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                borderBottom: centerTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
+                transition:"all 0.15s", textTransform:"capitalize",
+              }}>{key === "chart" ? "Chart" : "History"}</button>
             ))}
           </div>
 
-          {/* Tab content */}
-          <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column" }}>
-
+          {/* Chart or History content */}
+          <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+            {centerTab === "chart" && (
+              selectedStock ? (
+                <TradingChart
+                  key={selectedStock.symbol}
+                  symbol={selectedStock.symbol}
+                  companyName={selectedStock.company_name ?? selectedStock.symbol}
+                  currentPrice={selectedStock.price}
+                  changePercent={selectedStock.change_percent ?? 0}
+                  onBack={() => setSelectedStock(null)}
+                />
+              ) : spy ? (
+                <TradingChart
+                  key="overview-spy"
+                  symbol="SPY"
+                  companyName="SPDR S&P 500 ETF"
+                  currentPrice={spy.price}
+                  changePercent={spy.change_percent ?? 0}
+                  isOverview
+                />
+              ) : (
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flex:1, color:"rgba(232,234,240,0.4)", fontSize:13 }}>
+                  Select a stock to view its chart
+                </div>
+              )
+            )}
             {centerTab === "history" && participantId && (
-              <div style={{ padding:12 }}>
+              <div style={{ padding:12, overflowY:"auto", flex:1 }}>
                 <TradeHistory participantId={participantId} />
               </div>
             )}
+          </div>
 
-            {centerTab === "leaderboard" && competition && (
-              <div style={{ padding:12 }}>
-                <Leaderboard
-                  entries={leaderboard}
-                  currentUserId={userId}
-                  startingCash={competition.starting_cash}
-                  endDate={competition.end_date}
-                  competitionId={competition.id}
-                  onBotsChanged={loadAll}
-                />
+          {/* Bottom collapsible panels: Leaderboard | Bots */}
+          <div style={{ flexShrink:0, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+            {/* Panel toggle buttons */}
+            <div style={{ display:"flex", gap:0, padding:"0 12px", background:"rgba(255,255,255,0.01)" }}>
+              {([["leaderboard","Leaderboard"],["bots","Bots"]] as [BottomPanel & string, string][]).map(([key, label]) => (
+                <button key={key}
+                  onClick={() => setBottomPanel(p => p === key ? null : key)}
+                  style={{
+                    padding:"8px 14px", fontSize:11, fontWeight:600,
+                    cursor:"pointer", border:"none", background:"transparent",
+                    color: bottomPanel === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                    borderBottom: bottomPanel === key ? "2px solid #7dd3b0" : "2px solid transparent",
+                    transition:"all 0.15s",
+                  }}>
+                  {bottomPanel === key ? "▲" : "▼"} {label}
+                </button>
+              ))}
+            </div>
+            {/* Expanded panel content */}
+            {bottomPanel && (
+              <div style={{ maxHeight:220, overflowY:"auto", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                {bottomPanel === "leaderboard" && competition && (
+                  <div style={{ padding:"0 12px 12px" }}>
+                    <Leaderboard
+                      entries={leaderboard}
+                      currentUserId={userId}
+                      startingCash={competition.starting_cash}
+                      endDate={competition.end_date}
+                      competitionId={competition.id}
+                      onBotsChanged={loadAll}
+                    />
+                  </div>
+                )}
+                {bottomPanel === "bots" && competition && (
+                  <div style={{ padding:"0 12px 12px" }}>
+                    <Leaderboard
+                      entries={leaderboard.filter(e => e.is_bot)}
+                      currentUserId={userId}
+                      startingCash={competition.starting_cash}
+                      endDate={competition.end_date}
+                      competitionId={competition.id}
+                      onBotsChanged={loadAll}
+                    />
+                  </div>
+                )}
               </div>
             )}
-
-            {centerTab === "news" && (
-              <div style={{ padding:12 }}>
-                <NewsPanel
-                  symbol={selectedStock?.symbol ?? "SPY"}
-                  companyName={selectedStock?.company_name ?? selectedStock?.symbol ?? "S&P 500"}
-                />
-              </div>
-            )}
-
-            {centerTab === "ai" && participant && (
-              <div style={{ padding:12 }}>
-                <AIAdvisor
-                  participant={participant}
-                  holdings={holdings}
-                  stocks={stocks}
-                  recentTrades={trades}
-                  startingCash={competition?.starting_cash ?? 10000}
-                  onSelectSymbol={(sym) => {
-                    setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
-                  }}
-                />
-              </div>
-            )}
-
-            {centerTab === "watchlist" && userId && (
-              <div style={{ padding:12 }}>
-                <Watchlist
-                  userId={userId}
-                  stocks={stocks}
-                  onSelect={(stock) => {
-                    setSelectedStock(stock);
-                  }}
-                />
-              </div>
-            )}
-
-            {centerTab === "limits" && participantId && (
-              <div style={{ padding:12 }}>
-                <LimitOrders
-                  participantId={participantId}
-                  refreshKey={refreshKey}
-                  onOrderFilled={loadAll}
-                />
-              </div>
-            )}
-
-            {centerTab === "alerts" && userId && (
-              <div style={{ padding:12 }}>
-                <PriceAlerts
-                  userId={userId}
-                  stocks={stocks}
-                  onSelectSymbol={(sym) => {
-                    setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
-                  }}
-                  refreshKey={refreshKey}
-                />
-              </div>
-            )}
-
           </div>
         </main>
 
-        {/* Right: Stock list + Trade panel */}
-        <aside style={{
-          width: 300,
+        {/* News strip — between chart and right panel */}
+        <div style={{
+          width: 170,
           borderLeft: "1px solid rgba(255,255,255,0.06)",
+          borderRight: "1px solid rgba(255,255,255,0.06)",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
           flexShrink: 0,
         }}>
+          {/* AI Advisor button */}
+          <button
+            onClick={() => setRightTab(t => t === "ai" ? null : "ai")}
+            style={{
+              margin:8, padding:"8px 0", borderRadius:8, flexShrink:0,
+              background: rightTab === "ai" ? "rgba(125,211,176,0.15)" : "rgba(255,255,255,0.04)",
+              border: `1px solid ${rightTab === "ai" ? "rgba(125,211,176,0.4)" : "rgba(255,255,255,0.1)"}`,
+              color: rightTab === "ai" ? "#7dd3b0" : "rgba(232,234,240,0.7)",
+              fontSize:11, fontWeight:700, cursor:"pointer", letterSpacing:"0.02em",
+              transition:"all 0.15s",
+            }}>
+            ✦ AI Advisor
+          </button>
+          {/* News feed */}
           <div style={{ flex:1, overflowY:"auto" }}>
-            <StockList
-              stocks={stocks}
-              selectedSymbol={selectedStock?.symbol ?? ""}
-              onSelect={(stock) => {
-                setSelectedStock(stock);
-              }}
+            <NewsPanel
+              symbol={selectedStock?.symbol ?? "SPY"}
+              companyName={selectedStock?.company_name ?? selectedStock?.symbol ?? "S&P 500"}
             />
           </div>
+        </div>
+
+        {/* Right: Watchlist/Limits/Alerts/AI + Stock list + Trade panel */}
+        <aside style={{
+          width: 280,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          flexShrink: 0,
+        }}>
+          {/* Right tab bar */}
+          <div style={{
+            display:"flex", gap:0, flexShrink:0,
+            borderBottom:"1px solid rgba(255,255,255,0.06)",
+            background:"rgba(255,255,255,0.01)",
+            overflowX:"auto", scrollbarWidth:"none",
+          }}>
+            {([
+              ["watchlist","Watch"],
+              ["limits","Limits"],
+              ["alerts","Alerts"],
+              ["ai","Portfolio"],
+            ] as [NonNullable<RightTab>, string][]).map(([key, label]) => (
+              <button key={key}
+                onClick={() => setRightTab(t => t === key ? null : key)}
+                style={{
+                  padding:"9px 10px", fontSize:11, fontWeight:600,
+                  cursor:"pointer", border:"none", background:"transparent", whiteSpace:"nowrap",
+                  color: rightTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                  borderBottom: rightTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
+                  transition:"all 0.15s", flex:1,
+                }}>{label}</button>
+            ))}
+          </div>
+
+          {/* Tool panel (shown when a right tab is active) */}
+          {rightTab && (
+            <div style={{ flex:1, overflowY:"auto", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+              {rightTab === "watchlist" && userId && (
+                <div style={{ padding:8 }}>
+                  <Watchlist userId={userId} stocks={stocks}
+                    onSelect={(stock) => { setSelectedStock(stock); setCenterTab("chart"); }}
+                  />
+                </div>
+              )}
+              {rightTab === "limits" && participantId && (
+                <div style={{ padding:8 }}>
+                  <LimitOrders participantId={participantId} refreshKey={refreshKey} onOrderFilled={loadAll} />
+                </div>
+              )}
+              {rightTab === "alerts" && userId && (
+                <div style={{ padding:8 }}>
+                  <PriceAlerts userId={userId} stocks={stocks} refreshKey={refreshKey}
+                    onSelectSymbol={(sym) => { setSelectedStock(stocks.find(s => s.symbol === sym) ?? null); setCenterTab("chart"); }}
+                  />
+                </div>
+              )}
+              {rightTab === "ai" && participant && (
+                <div style={{ padding:8 }}>
+                  <AIAdvisor
+                    participant={participant} holdings={holdings} stocks={stocks}
+                    recentTrades={trades} startingCash={competition?.starting_cash ?? 10000}
+                    onSelectSymbol={(sym) => { setSelectedStock(stocks.find(s => s.symbol === sym) ?? null); setCenterTab("chart"); setRightTab(null); }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Stock list — always shown when no right tab, shrinks when tool is open */}
+          {!rightTab && (
+            <div style={{ flex:1, overflowY:"auto" }}>
+              <StockList
+                stocks={stocks}
+                selectedSymbol={selectedStock?.symbol ?? ""}
+                onSelect={(stock) => { setSelectedStock(stock); setCenterTab("chart"); }}
+              />
+            </div>
+          )}
+
+          {/* Trade panel */}
           {selectedStock && participant && (
             <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)", flexShrink:0 }}>
               <TradePanel

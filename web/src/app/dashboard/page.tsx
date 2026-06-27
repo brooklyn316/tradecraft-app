@@ -662,42 +662,58 @@ export default function DashboardPage() {
                 symbol={selectedStock?.symbol ?? "SPY"}
                 companyName={selectedStock?.company_name ?? selectedStock?.symbol ?? "S&P 500"}
               />
-            ) : (
-              /* Sectors: show broad ETF proxies from loaded stocks */
-              <div style={{ padding:"8px 0" }}>
-                {[
-                  { label:"Technology",   sym:"QQQ" },
-                  { label:"S&P 500",      sym:"SPY" },
-                  { label:"Financials",   sym:"BAC" },
-                  { label:"Healthcare",   sym:"UNH" },
-                  { label:"Consumer",     sym:"AMZN" },
-                  { label:"Energy",       sym:"XOM" },
-                  { label:"Industrials",  sym:"BA" },
-                  { label:"Real Estate",  sym:"COST" },
-                ].map(({ label, sym }) => {
-                  const s = stocks.find(x => x.symbol === sym);
-                  if (!s) return null;
-                  const up = (s.change_percent ?? 0) >= 0;
-                  return (
-                    <div key={sym}
-                      onClick={() => setSelectedStock(s)}
-                      style={{ display:"flex", alignItems:"center", padding:"8px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer", gap:8 }}
-                    >
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:11, fontWeight:700, color:"rgba(232,234,240,0.85)" }}>{label}</div>
-                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>{sym}</div>
-                      </div>
-                      <div style={{ textAlign:"right" }}>
-                        <div style={{ fontSize:11, fontFamily:"monospace", fontWeight:600, color:"rgba(232,234,240,0.7)" }}>${s.price.toFixed(2)}</div>
-                        <div style={{ fontSize:11, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
-                          {up ? "+" : ""}{(s.change_percent ?? 0).toFixed(2)}%
+            ) : (() => {
+              // Sector groups — average change_percent of member stocks
+              const SECTOR_GROUPS = [
+                { label: "Tech",        syms: ["AAPL","MSFT","GOOGL","AMD","NVDA","META","ADBE"] },
+                { label: "EV & Auto",   syms: ["TSLA","RIVN","F","GM"] },
+                { label: "E-commerce",  syms: ["AMZN","PYPL","COIN","UBER"] },
+                { label: "Streaming",   syms: ["NFLX","SNAP"] },
+                { label: "Index ETFs",  syms: ["SPY","QQQ"] },
+                { label: "Finance",     syms: ["JPM","V","MA","BAC","WFC"] },
+                { label: "Healthcare",  syms: ["JNJ","PFE","UNH"] },
+                { label: "Energy",      syms: ["XOM","CVX"] },
+                { label: "Consumer",    syms: ["WMT","KO","COST"] },
+              ];
+              const priceMap = Object.fromEntries(stocks.map(s => [s.symbol, s]));
+              const sectors = SECTOR_GROUPS.map(g => {
+                const members = g.syms.map(sym => priceMap[sym]).filter(Boolean);
+                if (!members.length) return null;
+                const avg = members.reduce((s, m) => s + (m.change_percent ?? 0), 0) / members.length;
+                return { label: g.label, avg };
+              }).filter((x): x is { label: string; avg: number } => x !== null);
+
+              return (
+                <div style={{ padding:"10px 0 0" }}>
+                  <div style={{ padding:"0 14px 8px", fontSize:9, fontWeight:700,
+                    color:"rgba(232,234,240,0.35)", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    Sector Performance
+                  </div>
+                  {sectors.map(({ label, avg }) => {
+                    const up = avg >= 0;
+                    const barW = Math.min(Math.abs(avg) / 4, 1) * 100; // cap at ±4%
+                    return (
+                      <div key={label} style={{ padding:"7px 14px 8px", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                          <span style={{ fontSize:12, fontWeight:600, color:"rgba(232,234,240,0.8)" }}>{label}</span>
+                          <span style={{ fontSize:13, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
+                            {up ? "+" : ""}{avg.toFixed(2)}%
+                          </span>
+                        </div>
+                        {/* Progress bar */}
+                        <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.06)" }}>
+                          <div style={{
+                            height:"100%", borderRadius:2, width:`${barW}%`,
+                            background: up ? "#4ade80" : "#f87171",
+                            transition:"width 0.4s ease",
+                          }} />
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
 

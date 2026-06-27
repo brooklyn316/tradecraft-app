@@ -433,8 +433,8 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Bottom section — 50% of center column, row: [tabs | news] */}
-          <div style={{ flex:"0 0 50%", display:"flex", flexDirection:"row", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
+          {/* Bottom section — 55% of center column, row: [tabs | news] */}
+          <div style={{ flex:"0 0 55%", display:"flex", flexDirection:"row", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
 
           {/* Left: tab bar + content */}
           <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflow:"hidden" }}>
@@ -453,7 +453,7 @@ export default function DashboardPage() {
               ["trending",    "TRENDING"],
               ["watchlist",   "★ WATCHLIST"],
               ["alerts",      "🔔 ALERTS"],
-              ["competition", "COMPETITION"],
+              ["competition", "COMP"],
               ["activity",    "⚡ ACTIVITY"],
             ] as [BottomTab, string][]).map(([key, label]) => (
               <button key={key} onClick={() => setBottomTab(key)} style={{

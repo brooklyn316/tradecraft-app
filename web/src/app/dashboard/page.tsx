@@ -286,7 +286,10 @@ export default function DashboardPage() {
               />
             )}
             {centerTab === "news" && (
-              <NewsPanel symbol={selectedStock?.symbol ?? "SPY"} />
+              <NewsPanel
+                symbol={selectedStock?.symbol ?? "SPY"}
+                companyName={selectedStock?.company_name ?? selectedStock?.symbol ?? "S&P 500"}
+              />
             )}
             {centerTab === "ai" && participant && (
               <AIAdvisor

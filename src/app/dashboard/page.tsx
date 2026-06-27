@@ -433,8 +433,8 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Bottom section — 40% of center column, row: [tabs | news] */}
-          <div style={{ flex:"0 0 40%", display:"flex", flexDirection:"row", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
+          {/* Bottom section — 50% of center column, row: [tabs | news] */}
+          <div style={{ flex:"0 0 50%", display:"flex", flexDirection:"row", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
 
           {/* Left: tab bar + content */}
           <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflow:"hidden" }}>
@@ -650,7 +650,7 @@ export default function DashboardPage() {
 
           {/* News panel — same height as bottom section */}
           <div style={{
-            width: 300,
+            width: 210,
             borderLeft: "1px solid rgba(255,255,255,0.06)",
             display: "flex",
             flexDirection: "column",
@@ -746,7 +746,7 @@ export default function DashboardPage() {
 
         {/* ══ RIGHT PANEL: Trade / Portfolio / History / AI / Orders ══ */}
         <aside style={{
-          width: 300,
+          width: 340,
           borderLeft: "1px solid rgba(255,255,255,0.06)",
           display: "flex",
           flexDirection: "column",

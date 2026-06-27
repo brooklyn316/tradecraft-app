@@ -24,7 +24,7 @@ import LimitOrders      from "@/components/LimitOrders";
 import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
 
-type CenterTab = "chart" | "history" | "leaderboard" | "news" | "ai" | "watchlist" | "limits" | "alerts";
+type CenterTab = "history" | "leaderboard" | "news" | "ai" | "watchlist" | "limits" | "alerts";
 
 interface ParticipantSnapshot {
   id: string;
@@ -37,7 +37,6 @@ interface ParticipantSnapshot {
 }
 
 const CENTER_TABS: [CenterTab, string][] = [
-  ["chart",       "Chart"],
   ["history",     "History"],
   ["leaderboard", "Leaderboard"],
   ["news",        "News"],
@@ -75,7 +74,7 @@ export default function DashboardPage() {
 
   // ── UI ────────────────────────────────────────────────────
   const [selectedStock, setSelectedStock] = useState<StockPrice | null>(null);
-  const [centerTab, setCenterTab]         = useState<CenterTab>("chart");
+  const [centerTab, setCenterTab]         = useState<CenterTab>("history");
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const participant   = competitions[activeIdx] ?? null;
@@ -204,7 +203,6 @@ export default function DashboardPage() {
 
   const handleTickerSelect = useCallback((stock: StockPrice) => {
     setSelectedStock(stock);
-    setCenterTab("chart");
   }, []);
 
   const selectedHolding = selectedStock
@@ -338,16 +336,42 @@ export default function DashboardPage() {
               startingCash={competition?.starting_cash ?? 10000}
               onSelectSymbol={(sym) => {
                 setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
-                setCenterTab("chart");
               }}
             />
           )}
         </aside>
 
-        {/* Center: tabs + content */}
+        {/* Center: chart on top, tabs + content below */}
         <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
 
-          {/* Tab bar */}
+          {/* Chart — always visible, SPY overview when no stock selected */}
+          <div style={{ flexShrink:0, borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+            {selectedStock ? (
+              <TradingChart
+                key={selectedStock.symbol}
+                symbol={selectedStock.symbol}
+                companyName={selectedStock.company_name ?? selectedStock.symbol}
+                currentPrice={selectedStock.price}
+                changePercent={selectedStock.change_percent ?? 0}
+                onBack={() => setSelectedStock(null)}
+              />
+            ) : spy ? (
+              <TradingChart
+                key="overview-spy"
+                symbol="SPY"
+                companyName="SPDR S&P 500 ETF"
+                currentPrice={spy.price}
+                changePercent={spy.change_percent ?? 0}
+                isOverview
+              />
+            ) : (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:260, color:"rgba(232,234,240,0.4)", fontSize:13 }}>
+                Select a stock to view its chart
+              </div>
+            )}
+          </div>
+
+          {/* Secondary tab bar */}
           <div style={{
             display: "flex",
             gap: 0,
@@ -356,13 +380,14 @@ export default function DashboardPage() {
             flexShrink: 0,
             overflowX: "auto",
             background: "rgba(255,255,255,0.01)",
+            scrollbarWidth: "none",
           }}>
             {CENTER_TABS.map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setCenterTab(key)}
                 style={{
-                  padding: "11px 10px",
+                  padding: "10px 12px",
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: "pointer",
@@ -381,33 +406,6 @@ export default function DashboardPage() {
 
           {/* Tab content */}
           <div style={{ flex:1, overflowY:"auto", display:"flex", flexDirection:"column" }}>
-
-            {/* Chart — SPY overview when no stock selected */}
-            {centerTab === "chart" && (
-              selectedStock ? (
-                <TradingChart
-                  key={selectedStock.symbol}
-                  symbol={selectedStock.symbol}
-                  companyName={selectedStock.company_name ?? selectedStock.symbol}
-                  currentPrice={selectedStock.price}
-                  changePercent={selectedStock.change_percent ?? 0}
-                  onBack={() => setSelectedStock(null)}
-                />
-              ) : spy ? (
-                <TradingChart
-                  key="overview-spy"
-                  symbol="SPY"
-                  companyName="SPDR S&P 500 ETF"
-                  currentPrice={spy.price}
-                  changePercent={spy.change_percent ?? 0}
-                  isOverview
-                />
-              ) : (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flex:1, color:"rgba(232,234,240,0.4)", fontSize:13 }}>
-                  Select a stock to view its chart
-                </div>
-              )
-            )}
 
             {centerTab === "history" && participantId && (
               <div style={{ padding:12 }}>
@@ -447,7 +445,6 @@ export default function DashboardPage() {
                   startingCash={competition?.starting_cash ?? 10000}
                   onSelectSymbol={(sym) => {
                     setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
-                    setCenterTab("chart");
                   }}
                 />
               </div>
@@ -460,7 +457,6 @@ export default function DashboardPage() {
                   stocks={stocks}
                   onSelect={(stock) => {
                     setSelectedStock(stock);
-                    setCenterTab("chart");
                   }}
                 />
               </div>
@@ -483,7 +479,6 @@ export default function DashboardPage() {
                   stocks={stocks}
                   onSelectSymbol={(sym) => {
                     setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
-                    setCenterTab("chart");
                   }}
                   refreshKey={refreshKey}
                 />
@@ -508,7 +503,6 @@ export default function DashboardPage() {
               selectedSymbol={selectedStock?.symbol ?? ""}
               onSelect={(stock) => {
                 setSelectedStock(stock);
-                setCenterTab("chart");
               }}
             />
           </div>

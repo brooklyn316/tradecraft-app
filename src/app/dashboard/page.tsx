@@ -69,6 +69,7 @@ export default function DashboardPage() {
   }>>([]);
   const [loading, setLoading]           = useState(true);
   const [refreshKey, setRefreshKey]     = useState(0);
+  const [countdown, setCountdown]       = useState(60);
 
   // ── UI ────────────────────────────────────────────────────
   const [selectedStock, setSelectedStock] = useState<StockPrice | null>(null);
@@ -78,6 +79,7 @@ export default function DashboardPage() {
   const [predictStock, setPredictStock]   = useState<{ symbol: string; price: number } | null>(null);
   const [copied, setCopied]               = useState(false);
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const participant   = competitions[activeIdx] ?? null;
   const competition   = participant?.competition ?? null;
@@ -210,8 +212,13 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!authReady) return;
     loadAll();
-    refreshRef.current = setInterval(loadAll, 60_000);
-    return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
+    setCountdown(60);
+    refreshRef.current = setInterval(() => { loadAll(); setCountdown(60); }, 60_000);
+    countdownRef.current = setInterval(() => setCountdown(c => c > 0 ? c - 1 : 0), 1_000);
+    return () => {
+      if (refreshRef.current) clearInterval(refreshRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
   }, [authReady, loadAll]);
 
   const handleTradeComplete = useCallback(() => {
@@ -276,7 +283,8 @@ export default function DashboardPage() {
     );
   }
 
-  const spy = stocks.find(s => s.symbol === "SPY");
+  const spy      = stocks.find(s => s.symbol === "SPY");
+  const username = participantSnapshots.find(p => p.user_id === userId)?.username ?? "";
 
   // ── Time helper ───────────────────────────────────────────
   function timeAgo(iso: string) {
@@ -370,6 +378,16 @@ export default function DashboardPage() {
           ))}
         </div>
 
+        <span style={{ fontSize:11, color:"rgba(232,234,240,0.35)", flexShrink:0, whiteSpace:"nowrap" }}>
+          ● Refreshes in {countdown}s
+        </span>
+
+        {username && (
+          <span style={{ fontSize:12, fontWeight:600, color:"rgba(232,234,240,0.7)", flexShrink:0 }}>
+            {username}
+          </span>
+        )}
+
         <button onClick={handleSignOut}
           style={{ fontSize:11, color:"rgba(232,234,240,0.4)", background:"none", border:"none", cursor:"pointer", flexShrink:0 }}>
           Sign out
@@ -386,6 +404,26 @@ export default function DashboardPage() {
 
         {/* ══ CENTER: Chart + bottom tabs ══ */}
         <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+
+          {/* Chart toolbar */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, padding:"6px 12px", borderBottom:"1px solid rgba(255,255,255,0.06)", flexShrink:0, background:"rgba(255,255,255,0.01)" }}>
+            <button
+              onClick={() => setSelectedStock(null)}
+              style={{ padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:5, cursor:"pointer",
+                background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)",
+                color:"rgba(232,234,240,0.7)" }}>
+              ← Market
+            </button>
+            {selectedStock && (
+              <button
+                onClick={() => setPredictStock({ symbol: selectedStock.symbol, price: selectedStock.price })}
+                style={{ padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:5, cursor:"pointer",
+                  background:"rgba(125,211,176,0.08)", border:"1px solid rgba(125,211,176,0.3)",
+                  color:"#7dd3b0" }}>
+                Predict
+              </button>
+            )}
+          </div>
 
           {/* Chart area — 62% of center column */}
           <div style={{ flex:"0 0 62%", overflow:"hidden", position:"relative" }}>
@@ -439,12 +477,12 @@ export default function DashboardPage() {
             scrollbarWidth: "none",
           }}>
             {([
-              ["competition", "COMPETITION"],
-              ["activity",    "⚡ ACTIVITY"],
               ["markets",     "LIVE MARKETS"],
               ["trending",    "TRENDING"],
               ["watchlist",   "★ WATCHLIST"],
               ["alerts",      "🔔 ALERTS"],
+              ["competition", "COMPETITION"],
+              ["activity",    "⚡ ACTIVITY"],
             ] as [BottomTab, string][]).map(([key, label]) => (
               <button key={key} onClick={() => setBottomTab(key)} style={tabBtn(bottomTab === key)}>
                 {label}

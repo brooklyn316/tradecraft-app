@@ -78,10 +78,11 @@ export async function POST(req: NextRequest) {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw new Error(error.message ?? "Database error");
     return NextResponse.json({ order: data });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -98,9 +99,10 @@ export async function DELETE(req: NextRequest) {
       .eq("id", orderId)
       .eq("status", "pending");
 
-    if (error) throw error;
+    if (error) throw new Error(error.message ?? "Database error");
     return NextResponse.json({ success: true });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

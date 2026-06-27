@@ -25,6 +25,7 @@ import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
 import StockPredict     from "@/components/StockPredict";
 import StockSearch      from "@/components/StockSearch";
+import MarketEvents     from "@/components/MarketEvents";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders";
@@ -810,6 +811,18 @@ export default function DashboardPage() {
           {/* Stock search — pinned above content, only visible in Trade tab */}
           {rightTab === "trade" && (
             <StockSearch onSelect={handleSymbolSearch} />
+          )}
+
+          {/* Market events — always visible, shows real price movers + game events */}
+          {stocks.length > 0 && (
+            <MarketEvents
+              stocks={stocks}
+              onSelectStock={(stock) => {
+                setSelectedStock(stock);
+                setRightTab("trade");
+              }}
+              onSwitchToTrade={() => setRightTab("trade")}
+            />
           )}
 
           {/* Content */}

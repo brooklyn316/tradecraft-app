@@ -423,8 +423,11 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Bottom section — 38% of center column, never overflows */}
-          <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"column", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
+          {/* Bottom section — 38% of center column, row: [tabs | news] */}
+          <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"row", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
+
+          {/* Left: tab bar + content */}
+          <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflow:"hidden" }}>
 
           {/* Tab bar */}
           <div style={{
@@ -620,18 +623,17 @@ export default function DashboardPage() {
             )}
 
           </div>{/* end scrollable content */}
-          </div>{/* end 38% bottom section */}
-        </main>
+          </div>{/* end left tabs column */}
 
-        {/* ══ NEWS PANEL ══ */}
-        <div style={{
-          width: 300,
-          borderLeft: "1px solid rgba(255,255,255,0.06)",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          flexShrink: 0,
-        }}>
+          {/* News panel — same height as bottom section */}
+          <div style={{
+            width: 300,
+            borderLeft: "1px solid rgba(255,255,255,0.06)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            flexShrink: 0,
+          }}>
           {/* NEWS | SECTORS tabs */}
           <div style={{
             display: "flex",
@@ -715,7 +717,9 @@ export default function DashboardPage() {
               );
             })()}
           </div>
-        </div>
+          </div>{/* end news panel */}
+          </div>{/* end 38% bottom row */}
+        </main>
 
         {/* ══ RIGHT PANEL: Trade / Portfolio / History / AI / Orders ══ */}
         <aside style={{

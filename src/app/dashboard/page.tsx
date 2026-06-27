@@ -41,9 +41,9 @@ const CENTER_TABS: [CenterTab, string][] = [
   ["history",     "History"],
   ["leaderboard", "Leaderboard"],
   ["news",        "News"],
-  ["ai",          "AI Advisor"],
+  ["ai",          "AI"],
   ["watchlist",   "Watchlist"],
-  ["limits",      "Limit Orders"],
+  ["limits",      "Limits"],
   ["alerts",      "Alerts"],
 ];
 
@@ -362,7 +362,7 @@ export default function DashboardPage() {
                 key={key}
                 onClick={() => setCenterTab(key)}
                 style={{
-                  padding: "11px 14px",
+                  padding: "11px 10px",
                   fontSize: 12,
                   fontWeight: 600,
                   cursor: "pointer",

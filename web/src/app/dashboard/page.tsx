@@ -1,348 +1,678 @@
 "use client";
 
-// ============================================================
-// Bot Lab Dashboard
-// Shows leaderboard, equity curves, daily/weekly summaries.
-// Read-only. No auth required.
-// ============================================================
+import { useEffect, useState, useCallback, useRef } from "react";
+import { getSupabaseClient } from "@/lib/supabase";
+import {
+  getAllStockPrices, getUserCompetitions, getHoldings, getRecentTrades,
+} from "@/lib/stockApi";
+import type {
+  StockPrice, CompetitionParticipant, Competition,
+  Holding, Trade, LeaderboardEntry,
+} from "@/types";
 
-import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@supabase/supabase-js";
+import TickerBar        from "@/components/TickerBar";
+import Portfolio        from "@/components/Portfolio";
+import StockList        from "@/components/StockList";
+import TradePanel       from "@/components/TradePanel";
+import TradingChart     from "@/components/TradingChart";
+import TradeHistory     from "@/components/TradeHistory";
+import Leaderboard      from "@/components/Leaderboard";
+import NewsPanel        from "@/components/NewsPanel";
+import AIAdvisor        from "@/components/AIAdvisor";
+import Watchlist        from "@/components/Watchlist";
+import LimitOrders      from "@/components/LimitOrders";
+import PriceAlerts      from "@/components/PriceAlerts";
+import CompetitionSetup from "@/components/CompetitionSetup";
+import StockPredict     from "@/components/StockPredict";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition";
+type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders";
+type NewsTab   = "news" | "sectors";
 
-// ── Types ────────────────────────────────────────────────────
-
-interface BotRow {
+interface ParticipantSnapshot {
   id: string;
-  code: string;
-  name: string;
-  group_id: string;
-  description: string;
-}
-
-interface SnapshotRow {
-  bot_id: string;
-  snapshot_date: string;
-  total_value: number;
+  user_id: string;
+  is_bot: boolean;
+  bot_strategy: string | null;
+  username: string;
   cash_balance: number;
-  portfolio_value: number;
-  day_pnl: number;
-  cumulative_return: number;
+  holdings: { symbol: string; shares: number }[];
 }
 
-interface LeaderEntry {
-  bot: BotRow;
-  latestSnapshot: SnapshotRow | null;
-  rank: number;
-}
-
-interface ChartPoint {
-  date: string;
-  value: number;
-}
-
-// ── Group colours ─────────────────────────────────────────────
-const GROUP_COLOURS: Record<string, string> = {
-  A: "#3b82f6", // blue
-  B: "#10b981", // green
-  C: "#f59e0b", // amber
-  D: "#8b5cf6", // purple
-  E: "#ef4444", // red
-};
-
-function groupBadge(groupId: string) {
-  const colour = GROUP_COLOURS[groupId] ?? "#6b7280";
-  return (
-    <span
-      style={{ backgroundColor: colour }}
-      className="text-white text-xs font-bold px-2 py-0.5 rounded-full mr-2"
-    >
-      {groupId}
-    </span>
-  );
-}
-
-function pnlColour(v: number) {
-  return v >= 0 ? "text-emerald-400" : "text-red-400";
-}
-
-function fmt(v: number, decimals = 2) {
-  return v.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
-}
-
-// ── Mini sparkline (SVG) ──────────────────────────────────────
-function Sparkline({ points, colour }: { points: ChartPoint[]; colour: string }) {
-  if (points.length < 2) return <span className="text-gray-600 text-xs">no data</span>;
-
-  const values = points.map(p => p.value);
-  const min    = Math.min(...values);
-  const max    = Math.max(...values);
-  const range  = max - min || 1;
-  const W = 120, H = 36;
-
-  const coords = values.map((v, i) => ({
-    x: (i / (values.length - 1)) * W,
-    y: H - ((v - min) / range) * H,
-  }));
-
-  const d = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
-
-  return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-      <path d={d} fill="none" stroke={colour} strokeWidth="2" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-// ── Main component ────────────────────────────────────────────
 export default function DashboardPage() {
-  const [bots, setBots]           = useState<BotRow[]>([]);
-  const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [selectedBot, setSelectedBot] = useState<string | null>(null);
-  const [tab, setTab]             = useState<"leaderboard" | "equity">("leaderboard");
+  const supabase = getSupabaseClient();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    const [{ data: botData }, { data: snapData }] = await Promise.all([
-      supabase.from("bots").select("*").order("code"),
-      supabase
-        .from("bot_daily_snapshots")
-        .select("*")
-        .order("snapshot_date", { ascending: true }),
-    ]);
-    setBots(botData ?? []);
-    setSnapshots(snapData ?? []);
-    setLoading(false);
+  // ── Auth ──────────────────────────────────────────────────
+  const [userId, setUserId]       = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) { window.location.href = "/"; return; }
+      setUserId(data.user.id);
+      setAuthReady(true);
+    });
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // ── Data ──────────────────────────────────────────────────
+  const [competitions, setCompetitions] = useState<(CompetitionParticipant & { competition: Competition })[]>([]);
+  const [activeIdx, setActiveIdx]       = useState(0);
+  const [stocks, setStocks]             = useState<StockPrice[]>([]);
+  const [holdings, setHoldings]         = useState<Holding[]>([]);
+  const [trades, setTrades]             = useState<Trade[]>([]);
+  const [leaderboard, setLeaderboard]   = useState<LeaderboardEntry[]>([]);
+  const [participantSnapshots, setParticipantSnapshots] = useState<ParticipantSnapshot[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [refreshKey, setRefreshKey]     = useState(0);
 
-  // Build leaderboard from latest snapshot per bot
-  const leaderboard: LeaderEntry[] = bots
-    .map(bot => {
-      const botSnaps = snapshots.filter(s => s.bot_id === bot.id);
-      const latest   = botSnaps.length > 0 ? botSnaps[botSnaps.length - 1] : null;
-      return { bot, latestSnapshot: latest, rank: 0 };
-    })
-    .sort((a, b) => {
-      const av = a.latestSnapshot?.total_value ?? 1000;
-      const bv = b.latestSnapshot?.total_value ?? 1000;
-      return bv - av;
-    })
-    .map((entry, i) => ({ ...entry, rank: i + 1 }));
+  // ── UI ────────────────────────────────────────────────────
+  const [selectedStock, setSelectedStock] = useState<StockPrice | null>(null);
+  const [bottomTab, setBottomTab]         = useState<BottomTab>("competition");
+  const [rightTab,  setRightTab]          = useState<RightTab>("trade");
+  const [newsTab,   setNewsTab]           = useState<NewsTab>("news");
+  const [predictStock, setPredictStock]   = useState<{ symbol: string; price: number } | null>(null);
+  const [copied, setCopied]               = useState(false);
+  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Equity chart data for selected bot
-  const equityData: ChartPoint[] = selectedBot
-    ? snapshots
-        .filter(s => s.bot_id === selectedBot)
-        .map(s => ({ date: s.snapshot_date, value: s.total_value }))
-    : [];
+  const participant   = competitions[activeIdx] ?? null;
+  const competition   = participant?.competition ?? null;
+  const participantId = participant?.id ?? null;
 
-  // Group averages
-  const groupAverages = ["A", "B", "C", "D", "E"].map(g => {
-    const entries = leaderboard.filter(e => e.bot.group_id === g && e.latestSnapshot);
-    const avg = entries.length > 0
-      ? entries.reduce((sum, e) => sum + (e.latestSnapshot!.cumulative_return), 0) / entries.length
-      : 0;
-    return { group: g, avg, count: entries.length };
+  // ── Live leaderboard ──────────────────────────────────────
+  useEffect(() => {
+    if (!participantSnapshots.length || !stocks.length || !competition) return;
+    const priceMap = Object.fromEntries(stocks.map(s => [s.symbol, s.price]));
+    const startingCash = competition.starting_cash;
+
+    const entries: LeaderboardEntry[] = participantSnapshots.map(p => {
+      const portfolioValue = p.holdings.reduce(
+        (sum, h) => sum + h.shares * (priceMap[h.symbol] ?? 0), 0
+      );
+      const total = p.cash_balance + portfolioValue;
+      return {
+        participant_id:  p.id,
+        user_id:         p.user_id,
+        is_bot:          p.is_bot,
+        username:        p.username,
+        cash_balance:    p.cash_balance,
+        portfolio_value: portfolioValue,
+        total_value:     total,
+        return_amount:   total - startingCash,
+        return_percent:  ((total - startingCash) / startingCash) * 100,
+        rank:            0,
+      };
+    });
+
+    entries.sort((a, b) => b.total_value - a.total_value);
+    entries.forEach((e, i) => { e.rank = i + 1; });
+    setLeaderboard(entries);
+  }, [stocks, participantSnapshots, competition]);
+
+  // ── Main load ─────────────────────────────────────────────
+  const loadAll = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const [comps, allStocks] = await Promise.all([
+        getUserCompetitions(userId),
+        getAllStockPrices(),
+      ]);
+      setStocks(allStocks);
+
+      const active = (comps as any[]).filter(c => c.competition?.status === "active");
+      setCompetitions(active as any);
+
+      if (active[activeIdx]) {
+        const comp = active[activeIdx];
+        const pid  = comp.id;
+        const cid  = comp.competition?.id;
+
+        const [h, t] = await Promise.all([getHoldings(pid), getRecentTrades(pid)]);
+        setHoldings(h as Holding[]);
+        setTrades(t as Trade[]);
+
+        if (cid) {
+          const { data: participants } = await supabase
+            .from("competition_participants")
+            .select("id, user_id, is_bot, bot_strategy, cash_balance, profiles(username)")
+            .eq("competition_id", cid);
+
+          if (participants?.length) {
+            const { data: allHoldings } = await supabase
+              .from("holdings")
+              .select("participant_id, symbol, shares")
+              .in("participant_id", participants.map((p: any) => p.id));
+
+            const holdingsByParticipant: Record<string, { symbol: string; shares: number }[]> = {};
+            for (const h of (allHoldings ?? [])) {
+              if (!holdingsByParticipant[h.participant_id]) holdingsByParticipant[h.participant_id] = [];
+              holdingsByParticipant[h.participant_id].push({ symbol: h.symbol, shares: h.shares });
+            }
+
+            const snapshots: ParticipantSnapshot[] = (participants as any[]).map(p => ({
+              id:           p.id,
+              user_id:      p.user_id,
+              is_bot:       p.is_bot,
+              bot_strategy: p.bot_strategy,
+              username:     p.is_bot
+                              ? (p.bot_strategy ? p.bot_strategy.charAt(0).toUpperCase() + p.bot_strategy.slice(1) + " Bot" : "Bot")
+                              : ((p.profiles as any)?.username ?? "Player"),
+              cash_balance: p.cash_balance,
+              holdings:     holdingsByParticipant[p.id] ?? [],
+            }));
+            setParticipantSnapshots(snapshots);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Dashboard load error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, activeIdx, supabase]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    loadAll();
+    refreshRef.current = setInterval(loadAll, 60_000);
+    return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
+  }, [authReady, loadAll]);
+
+  const handleTradeComplete = useCallback(() => {
+    setRefreshKey(k => k + 1);
+    setTimeout(loadAll, 500);
+  }, [loadAll]);
+
+  const handleSignOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  }, [supabase]);
+
+  const handleCopyInvite = useCallback(() => {
+    if (!competition?.invite_code) return;
+    const url = `${window.location.origin}/join/${competition.invite_code}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [competition]);
+
+  const handleTickerSelect = useCallback((stock: StockPrice) => {
+    setSelectedStock(stock);
+  }, []);
+
+  const selectedHolding = selectedStock
+    ? holdings.find(h => h.symbol === selectedStock.symbol) ?? null
+    : null;
+
+  // ── Loading ───────────────────────────────────────────────
+  if (!authReady || loading) {
+    return (
+      <div style={{ minHeight:"100vh", background:"#060a14", display:"flex", alignItems:"center", justifyContent:"center" }}>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ width:32, height:32, border:"2px solid #7dd3b0", borderTopColor:"transparent", borderRadius:"50%", animation:"spin 0.8s linear infinite", margin:"0 auto 12px" }} />
+          <p style={{ color:"rgba(232,234,240,0.45)", fontSize:13 }}>Loading Tradecraft…</p>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    );
+  }
+
+  // ── No active competition ─────────────────────────────────
+  if (competitions.length === 0) {
+    return (
+      <div style={{ minHeight:"100vh", background:"#060a14", color:"#e8eaf0", display:"flex", flexDirection:"column" }}>
+        <header style={{ borderBottom:"1px solid rgba(255,255,255,0.06)", padding:"0 24px", height:50, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ color:"#7dd3b0", fontWeight:800, fontSize:17, letterSpacing:"-0.02em" }}>TC</span>
+            <span style={{ fontWeight:600, fontSize:14 }}>Tradecraft</span>
+          </div>
+          <button onClick={handleSignOut} style={{ fontSize:12, color:"rgba(232,234,240,0.45)", background:"none", border:"none", cursor:"pointer" }}>Sign out</button>
+        </header>
+        <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ maxWidth:480, width:"100%" }}>
+            <h1 style={{ fontSize:24, fontWeight:700, marginBottom:8, textAlign:"center" }}>Welcome to Tradecraft</h1>
+            <p style={{ color:"rgba(232,234,240,0.5)", textAlign:"center", marginBottom:32 }}>Start a competition to begin trading</p>
+            <CompetitionSetup userId={userId!} onCreated={() => loadAll()} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const spy = stocks.find(s => s.symbol === "SPY");
+
+  // ── Shared button styles ──────────────────────────────────
+  const tabBtn = (active: boolean): React.CSSProperties => ({
+    padding: "10px 14px",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer",
+    border: "none",
+    background: "transparent",
+    whiteSpace: "nowrap",
+    letterSpacing: "0.04em",
+    color: active ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+    borderBottom: active ? "2px solid #7dd3b0" : "2px solid transparent",
+    transition: "all 0.15s",
   });
 
-  return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 p-6 font-mono">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Tradecraft Bot Lab</h1>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {bots.length} bots · {loading ? "loading…" : `${snapshots.length} snapshots`}
-          </p>
+  // ── Movers helper ─────────────────────────────────────────
+  const MoverRow = ({ s }: { s: StockPrice }) => {
+    const up = (s.change_percent ?? 0) >= 0;
+    return (
+      <div style={{ display:"flex", alignItems:"center", padding:"7px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)", gap:8 }}>
+        <div style={{ flex:1, minWidth:0 }}>
+          <span style={{ fontSize:12, fontWeight:800, marginRight:6, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</span>
+          <span style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</span>
         </div>
+        <span style={{ fontSize:12, fontWeight:700, color: up ? "#4ade80" : "#f87171", flexShrink:0 }}>
+          {up ? "+" : ""}{(s.change_percent ?? 0).toFixed(2)}%
+        </span>
         <button
-          onClick={load}
-          className="text-sm text-gray-400 hover:text-white border border-gray-700 px-3 py-1.5 rounded-lg"
-        >
-          Refresh
-        </button>
+          onClick={() => setSelectedStock(s)}
+          style={{ padding:"2px 7px", fontSize:10, borderRadius:4, cursor:"pointer",
+            background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"rgba(232,234,240,0.6)", flexShrink:0 }}
+        >Chart</button>
+        <button
+          onClick={() => setPredictStock({ symbol: s.symbol, price: s.price })}
+          style={{ padding:"2px 7px", fontSize:10, borderRadius:4, cursor:"pointer",
+            background:"rgba(125,211,176,0.08)", border:"1px solid rgba(125,211,176,0.25)", color:"#7dd3b0", flexShrink:0 }}
+        >Predict</button>
       </div>
+    );
+  };
 
-      {/* Group summary bar */}
-      <div className="grid grid-cols-5 gap-3 mb-6">
-        {groupAverages.map(({ group, avg, count }) => (
-          <div key={group} className="bg-gray-900 rounded-xl p-3 border border-gray-800">
-            <div className="flex items-center mb-1">
-              {groupBadge(group)}
-              <span className="text-gray-400 text-xs">{count} bots</span>
-            </div>
-            <p className={`text-lg font-bold ${pnlColour(avg)}`}>
-              {avg >= 0 ? "+" : ""}{fmt(avg)}%
-            </p>
-            <p className="text-gray-500 text-xs">avg return</p>
-          </div>
-        ))}
-      </div>
+  const sortedStocks = [...stocks].filter(s => s.change_percent != null);
+  const gainers = [...sortedStocks].sort((a, b) => (b.change_percent ?? 0) - (a.change_percent ?? 0)).slice(0, 8);
+  const losers  = [...sortedStocks].sort((a, b) => (a.change_percent ?? 0) - (b.change_percent ?? 0)).slice(0, 8);
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-4">
-        {(["leaderboard", "equity"] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-1.5 rounded-lg text-sm capitalize ${
-              tab === t ? "bg-blue-600 text-white" : "bg-gray-800 text-gray-400 hover:text-white"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
+  return (
+    <div style={{ minHeight:"100vh", background:"#060a14", color:"#e8eaf0", display:"flex", flexDirection:"column", overflow:"hidden", height:"100vh" }}>
 
-      {/* Leaderboard */}
-      {tab === "leaderboard" && (
-        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-800 text-gray-500 text-xs uppercase tracking-wider">
-                <th className="text-left px-4 py-3 w-8">#</th>
-                <th className="text-left px-4 py-3">Bot</th>
-                <th className="text-right px-4 py-3">Total Value</th>
-                <th className="text-right px-4 py-3">Return</th>
-                <th className="text-right px-4 py-3">Today P&L</th>
-                <th className="text-right px-4 py-3">Cash</th>
-                <th className="text-center px-4 py-3">Trend</th>
-              </tr>
-            </thead>
-            <tbody>
-              {leaderboard.map(({ bot, latestSnapshot, rank }) => {
-                const snapHistory = snapshots
-                  .filter(s => s.bot_id === bot.id)
-                  .slice(-14); // last 14 days for sparkline
-                const points = snapHistory.map(s => ({ date: s.snapshot_date, value: s.total_value }));
-                const colour  = GROUP_COLOURS[bot.group_id] ?? "#6b7280";
-
-                return (
-                  <tr
-                    key={bot.id}
-                    onClick={() => { setSelectedBot(bot.id); setTab("equity"); }}
-                    className="border-b border-gray-800/50 hover:bg-gray-800/40 cursor-pointer"
-                  >
-                    <td className="px-4 py-3 text-gray-500">{rank}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center">
-                        {groupBadge(bot.group_id)}
-                        <div>
-                          <p className="font-semibold">{bot.code} — {bot.name}</p>
-                          <p className="text-gray-500 text-xs">{bot.description?.slice(0, 60)}…</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono">
-                      ${fmt(latestSnapshot?.total_value ?? 1000)}
-                    </td>
-                    <td className={`px-4 py-3 text-right font-mono ${pnlColour(latestSnapshot?.cumulative_return ?? 0)}`}>
-                      {latestSnapshot ? `${latestSnapshot.cumulative_return >= 0 ? "+" : ""}${fmt(latestSnapshot.cumulative_return)}%` : "—"}
-                    </td>
-                    <td className={`px-4 py-3 text-right font-mono ${pnlColour(latestSnapshot?.day_pnl ?? 0)}`}>
-                      {latestSnapshot ? `${latestSnapshot.day_pnl >= 0 ? "+" : ""}$${fmt(latestSnapshot.day_pnl)}` : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-400">
-                      ${fmt(latestSnapshot?.cash_balance ?? 1000)}
-                    </td>
-                    <td className="px-4 py-3 flex justify-center">
-                      <Sparkline points={points} colour={colour} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* ── Header ── */}
+      <header style={{
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
+        padding: "0 16px",
+        height: 48,
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        flexShrink: 0,
+        background: "rgba(255,255,255,0.015)",
+      }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginRight:4, flexShrink:0 }}>
+          <span style={{ color:"#7dd3b0", fontWeight:800, fontSize:17, letterSpacing:"-0.02em" }}>TC</span>
+          <span style={{ fontWeight:600, fontSize:13, color:"rgba(232,234,240,0.9)" }}>Tradecraft</span>
         </div>
+
+        <div style={{ display:"flex", gap:4, flex:1, overflowX:"auto" }}>
+          {competitions.map((c, i) => (
+            <button key={c.id} onClick={() => setActiveIdx(i)} style={{
+              padding: "5px 13px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+              border: activeIdx === i ? "1px solid rgba(125,211,176,0.35)" : "1px solid rgba(255,255,255,0.07)",
+              background: activeIdx === i ? "rgba(125,211,176,0.1)" : "rgba(255,255,255,0.03)",
+              color: activeIdx === i ? "#7dd3b0" : "rgba(232,234,240,0.5)",
+              whiteSpace: "nowrap", transition: "all 0.15s",
+            }}>
+              {c.competition?.name ?? "Competition"}
+            </button>
+          ))}
+        </div>
+
+        <button onClick={handleSignOut}
+          style={{ fontSize:11, color:"rgba(232,234,240,0.4)", background:"none", border:"none", cursor:"pointer", flexShrink:0 }}>
+          Sign out
+        </button>
+      </header>
+
+      {/* ── Ticker bar ── */}
+      {stocks.length > 0 && (
+        <TickerBar stocks={stocks} onSelect={handleTickerSelect} />
       )}
 
-      {/* Equity curve */}
-      {tab === "equity" && (
-        <div className="space-y-4">
-          {/* Bot selector */}
-          <div className="flex flex-wrap gap-2">
-            {bots.map(b => (
-              <button
-                key={b.id}
-                onClick={() => setSelectedBot(b.id)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono ${
-                  selectedBot === b.id
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:text-white"
-                }`}
-              >
-                {b.code}
+      {/* ── Main layout ── */}
+      <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
+
+        {/* ══ CENTER: Chart + bottom tabs ══ */}
+        <main style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+
+          {/* Chart area — grows to fill */}
+          <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
+            {/* StockPredict overlay */}
+            {predictStock && (
+              <StockPredict
+                symbol={predictStock.symbol}
+                currentPrice={predictStock.price}
+                onClose={() => setPredictStock(null)}
+              />
+            )}
+
+            {selectedStock ? (
+              <TradingChart
+                key={selectedStock.symbol}
+                symbol={selectedStock.symbol}
+                companyName={selectedStock.company_name ?? selectedStock.symbol}
+                currentPrice={selectedStock.price}
+                changePercent={selectedStock.change_percent ?? 0}
+                onBack={() => setSelectedStock(null)}
+              />
+            ) : spy ? (
+              <TradingChart
+                key="overview-spy"
+                symbol="SPY"
+                companyName="SPDR S&P 500 ETF"
+                currentPrice={spy.price}
+                changePercent={spy.change_percent ?? 0}
+                isOverview
+              />
+            ) : (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", color:"rgba(232,234,240,0.4)", fontSize:13 }}>
+                Select a stock to view its chart
+              </div>
+            )}
+          </div>
+
+          {/* Bottom tab bar */}
+          <div style={{
+            display: "flex",
+            borderTop: "1px solid rgba(255,255,255,0.06)",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: 0,
+            background: "rgba(255,255,255,0.01)",
+            overflowX: "auto",
+            scrollbarWidth: "none",
+          }}>
+            {([
+              ["markets",     "LIVE MARKETS"],
+              ["trending",    "TRENDING"],
+              ["watchlist",   "★ WATCHLIST"],
+              ["alerts",      "🔔 ALERTS"],
+              ["competition", "COMPETITION"],
+            ] as [BottomTab, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => setBottomTab(key)} style={tabBtn(bottomTab === key)}>
+                {label}
               </button>
             ))}
           </div>
 
-          {selectedBot && equityData.length > 0 ? (
-            <div className="bg-gray-900 rounded-xl border border-gray-800 p-6">
-              {(() => {
-                const bot      = bots.find(b => b.id === selectedBot)!;
-                const colour   = GROUP_COLOURS[bot.group_id] ?? "#6b7280";
-                const values   = equityData.map(p => p.value);
-                const minV     = Math.min(...values);
-                const maxV     = Math.max(...values);
-                const range    = maxV - minV || 1;
-                const W = 800, H = 240;
-                const coords = values.map((v, i) => ({
-                  x: (i / Math.max(values.length - 1, 1)) * W,
-                  y: H - ((v - minV) / range) * (H - 20) - 10,
-                }));
-                const d = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
-                const latestReturn = equityData[equityData.length - 1].value;
+          {/* Bottom content panel */}
+          <div style={{ height: 220, overflowY: "auto", flexShrink: 0 }}>
 
-                return (
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h2 className="text-lg font-bold">{bot.code} — {bot.name}</h2>
-                        <p className="text-gray-500 text-sm">{bot.description}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-bold">${fmt(latestReturn)}</p>
-                        <p className={`text-sm ${pnlColour(latestReturn - 1000)}`}>
-                          {latestReturn >= 1000 ? "+" : ""}{fmt(((latestReturn / 1000) - 1) * 100)}% total return
-                        </p>
-                      </div>
-                    </div>
+            {bottomTab === "markets" && (
+              <StockList
+                stocks={stocks}
+                selectedSymbol={selectedStock?.symbol ?? ""}
+                onSelect={(stock) => setSelectedStock(stock)}
+              />
+            )}
 
-                    <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
-                      {/* Baseline at $1,000 */}
-                      <line
-                        x1="0" y1={H - ((1000 - minV) / range) * (H - 20) - 10}
-                        x2={W} y2={H - ((1000 - minV) / range) * (H - 20) - 10}
-                        stroke="#374151" strokeWidth="1" strokeDasharray="4,4"
-                      />
-                      <path d={d} fill="none" stroke={colour} strokeWidth="2.5" strokeLinejoin="round" />
-                      {/* Dots on first and last */}
-                      <circle cx={coords[0].x} cy={coords[0].y} r="4" fill={colour} />
-                      <circle cx={coords[coords.length-1].x} cy={coords[coords.length-1].y} r="4" fill={colour} />
-                    </svg>
-
-                    <div className="flex justify-between text-xs text-gray-500 mt-2">
-                      <span>{equityData[0].date}</span>
-                      <span>{equityData[equityData.length - 1].date}</span>
-                    </div>
+            {bottomTab === "trending" && (
+              <div style={{ display:"flex", height:"100%" }}>
+                <div style={{ flex:1, overflowY:"auto" }}>
+                  <div style={{ padding:"7px 12px 3px", fontSize:9, fontWeight:700, color:"#4ade80", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    ▲ Top Gainers
                   </div>
-                );
-              })()}
-            </div>
-          ) : (
-            <div className="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center text-gray-500">
-              {selectedBot ? "No snapshot data yet — bots need to run first." : "Select a bot above to view its equity curve."}
+                  {gainers.map(s => <MoverRow key={s.symbol} s={s} />)}
+                </div>
+                <div style={{ flex:1, overflowY:"auto", borderLeft:"1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ padding:"7px 12px 3px", fontSize:9, fontWeight:700, color:"#f87171", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    ▼ Top Losers
+                  </div>
+                  {losers.map(s => <MoverRow key={s.symbol} s={s} />)}
+                </div>
+              </div>
+            )}
+
+            {bottomTab === "watchlist" && userId && (
+              <Watchlist
+                userId={userId}
+                stocks={stocks}
+                onSelect={(stock) => setSelectedStock(stock)}
+              />
+            )}
+
+            {bottomTab === "alerts" && userId && (
+              <PriceAlerts
+                userId={userId}
+                stocks={stocks}
+                refreshKey={refreshKey}
+                onSelectSymbol={(sym) => setSelectedStock(stocks.find(s => s.symbol === sym) ?? null)}
+              />
+            )}
+
+            {bottomTab === "competition" && competition && (
+              <Leaderboard
+                entries={leaderboard}
+                currentUserId={userId}
+                startingCash={competition.starting_cash}
+                endDate={competition.end_date}
+                competitionId={competition.id}
+                onBotsChanged={loadAll}
+              />
+            )}
+
+          </div>
+        </main>
+
+        {/* ══ NEWS PANEL ══ */}
+        <div style={{
+          width: 300,
+          borderLeft: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          flexShrink: 0,
+        }}>
+          {/* NEWS | SECTORS tabs */}
+          <div style={{
+            display: "flex",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: 0,
+            background: "rgba(255,255,255,0.01)",
+          }}>
+            {([["news","📰 NEWS"],["sectors","SECTORS"]] as [NewsTab, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => setNewsTab(key)} style={{
+                flex: 1,
+                padding: "10px 8px",
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                letterSpacing: "0.06em",
+                color: newsTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                borderBottom: newsTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
+                transition: "all 0.15s",
+              }}>{label}</button>
+            ))}
+          </div>
+
+          <div style={{ flex:1, overflowY:"auto" }}>
+            {newsTab === "news" ? (
+              <NewsPanel
+                symbol={selectedStock?.symbol ?? "SPY"}
+                companyName={selectedStock?.company_name ?? selectedStock?.symbol ?? "S&P 500"}
+              />
+            ) : (
+              /* Sectors: show broad ETF proxies from loaded stocks */
+              <div style={{ padding:"8px 0" }}>
+                {[
+                  { label:"Technology",   sym:"QQQ" },
+                  { label:"S&P 500",      sym:"SPY" },
+                  { label:"Financials",   sym:"BAC" },
+                  { label:"Healthcare",   sym:"UNH" },
+                  { label:"Consumer",     sym:"AMZN" },
+                  { label:"Energy",       sym:"XOM" },
+                  { label:"Industrials",  sym:"BA" },
+                  { label:"Real Estate",  sym:"COST" },
+                ].map(({ label, sym }) => {
+                  const s = stocks.find(x => x.symbol === sym);
+                  if (!s) return null;
+                  const up = (s.change_percent ?? 0) >= 0;
+                  return (
+                    <div key={sym}
+                      onClick={() => setSelectedStock(s)}
+                      style={{ display:"flex", alignItems:"center", padding:"8px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer", gap:8 }}
+                    >
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:"rgba(232,234,240,0.85)" }}>{label}</div>
+                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>{sym}</div>
+                      </div>
+                      <div style={{ textAlign:"right" }}>
+                        <div style={{ fontSize:11, fontFamily:"monospace", fontWeight:600, color:"rgba(232,234,240,0.7)" }}>${s.price.toFixed(2)}</div>
+                        <div style={{ fontSize:11, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
+                          {up ? "+" : ""}{(s.change_percent ?? 0).toFixed(2)}%
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ══ RIGHT PANEL: Trade / Portfolio / History / AI / Orders ══ */}
+        <aside style={{
+          width: 300,
+          borderLeft: "1px solid rgba(255,255,255,0.06)",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          flexShrink: 0,
+        }}>
+          {/* Tab bar */}
+          <div style={{
+            display: "flex",
+            borderBottom: "1px solid rgba(255,255,255,0.06)",
+            flexShrink: 0,
+            background: "rgba(255,255,255,0.01)",
+            overflowX: "auto",
+            scrollbarWidth: "none",
+          }}>
+            {([
+              ["trade",     "Trade"],
+              ["portfolio", "Portfolio"],
+              ["history",   "History"],
+              ["ai",        "✦ AI"],
+              ["orders",    "Orders"],
+            ] as [RightTab, string][]).map(([key, label]) => (
+              <button key={key} onClick={() => setRightTab(key)} style={{
+                flex: 1,
+                padding: "10px 6px",
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                whiteSpace: "nowrap",
+                color: rightTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                borderBottom: rightTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
+                transition: "all 0.15s",
+              }}>{label}</button>
+            ))}
+          </div>
+
+          {/* Content */}
+          <div style={{ flex:1, overflowY:"auto" }}>
+
+            {rightTab === "trade" && (
+              selectedStock && participant ? (
+                <TradePanel
+                  stock={selectedStock}
+                  participant={participant}
+                  holding={selectedHolding}
+                  onTradeComplete={handleTradeComplete}
+                />
+              ) : (
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:120, color:"rgba(232,234,240,0.35)", fontSize:12 }}>
+                  Select a stock to trade
+                </div>
+              )
+            )}
+
+            {rightTab === "portfolio" && participant && (
+              <Portfolio
+                participant={participant}
+                holdings={holdings}
+                prices={stocks}
+                startingCash={competition?.starting_cash ?? 10000}
+                onSelectSymbol={(sym) => {
+                  setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                  setRightTab("trade");
+                }}
+              />
+            )}
+
+            {rightTab === "history" && participantId && (
+              <TradeHistory participantId={participantId} />
+            )}
+
+            {rightTab === "ai" && participant && (
+              <AIAdvisor
+                participant={participant}
+                holdings={holdings}
+                stocks={stocks}
+                recentTrades={trades}
+                startingCash={competition?.starting_cash ?? 10000}
+                onSelectSymbol={(sym) => {
+                  setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                  setRightTab("trade");
+                }}
+              />
+            )}
+
+            {rightTab === "orders" && participantId && (
+              <LimitOrders
+                participantId={participantId}
+                refreshKey={refreshKey}
+                onOrderFilled={loadAll}
+              />
+            )}
+
+          </div>
+
+          {/* Invite friends — pinned at bottom for friends competitions */}
+          {competition?.mode === "friends" && competition?.invite_code && (
+            <div style={{
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+              padding: "10px 14px",
+              flexShrink: 0,
+              background: "rgba(255,255,255,0.01)",
+            }}>
+              <div style={{ fontSize:9, fontWeight:700, color:"rgba(232,234,240,0.35)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:7 }}>
+                Invite Friends
+              </div>
+              <div style={{ display:"flex", gap:6, alignItems:"center", marginBottom:6 }}>
+                <div style={{
+                  flex:1, fontFamily:"monospace", fontSize:13, fontWeight:800, color:"#7dd3b0",
+                  letterSpacing:"0.12em", background:"rgba(125,211,176,0.05)",
+                  border:"1px solid rgba(125,211,176,0.15)", borderRadius:6, padding:"6px 8px",
+                }}>
+                  {competition.invite_code}
+                </div>
+                <button onClick={handleCopyInvite} style={{
+                  padding:"6px 12px", borderRadius:6, fontSize:11, fontWeight:700, cursor:"pointer",
+                  background: copied ? "rgba(125,211,176,0.2)" : "rgba(125,211,176,0.08)",
+                  border: `1px solid rgba(125,211,176,${copied ? "0.4" : "0.2"})`,
+                  color:"#7dd3b0", transition:"all 0.2s",
+                }}>
+                  {copied ? "✓" : "Copy"}
+                </button>
+              </div>
+              <button onClick={handleCopyInvite} style={{
+                width:"100%", padding:"7px", borderRadius:6, fontSize:11, fontWeight:600, cursor:"pointer",
+                background:"rgba(125,211,176,0.05)", border:"1px solid rgba(125,211,176,0.12)",
+                color:"rgba(125,211,176,0.65)",
+              }}>
+                🔗 Share Invite
+              </button>
             </div>
           )}
-        </div>
-      )}
+
+        </aside>
+
+      </div>
     </div>
   );
 }

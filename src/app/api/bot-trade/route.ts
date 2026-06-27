@@ -190,8 +190,12 @@ export async function GET() {
       ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/stock-prices`
       : null;
     if (edgeUrl) {
-      const allSymbols = ["AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","AMD","NFLX","JPM",
-        "V","MA","JNJ","PFE","XOM","CVX","WMT","KO","PYPL","COIN","SPY","QQQ","RIVN","SNAP","UBER"];
+      const allSymbols = [
+        "AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","AMD","NFLX","JPM",
+        "V","MA","JNJ","PFE","XOM","CVX","WMT","KO","PYPL","COIN","SPY","QQQ","RIVN","SNAP","UBER",
+        "ADBE","AVGO","BAC","CSCO","DIS","F","GM","GS","HD","IBM","INTC","LMT","MCD","MRK","MS",
+        "NKE","ORCL","PLTR","ROKU","SBUX","T","TGT","UNH","WFC","BABA",
+      ];
       try {
         await fetch(edgeUrl, {
           method: "POST",

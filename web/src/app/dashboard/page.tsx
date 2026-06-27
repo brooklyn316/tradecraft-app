@@ -3,13 +3,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
-  getAllStockPrices, getUserCompetitions, getHoldings,
-  getRecentTrades, getWatchlist, addToWatchlist, removeFromWatchlist,
-  getWatchlist as fetchWatchlist,
+  getAllStockPrices, getUserCompetitions, getHoldings, getRecentTrades,
 } from "@/lib/stockApi";
 import type {
   StockPrice, CompetitionParticipant, Competition,
-  Holding, Trade, WatchlistItem, LeaderboardEntry,
+  Holding, Trade, LeaderboardEntry,
 } from "@/types";
 
 import TickerBar        from "@/components/TickerBar";
@@ -25,7 +23,6 @@ import Watchlist        from "@/components/Watchlist";
 import LimitOrders      from "@/components/LimitOrders";
 import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
-import Toast            from "@/components/Toast";
 
 type CenterTab = "chart" | "history" | "leaderboard" | "news" | "ai" | "watchlist" | "limits" | "alerts";
 
@@ -33,7 +30,7 @@ export default function DashboardPage() {
   const supabase = getSupabaseClient();
 
   // ── Auth ──────────────────────────────────────────────────
-  const [userId, setUserId]     = useState<string | null>(null);
+  const [userId, setUserId]       = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
@@ -50,12 +47,11 @@ export default function DashboardPage() {
   const [stocks, setStocks]             = useState<StockPrice[]>([]);
   const [holdings, setHoldings]         = useState<Holding[]>([]);
   const [trades, setTrades]             = useState<Trade[]>([]);
-  const [watchlist, setWatchlist]       = useState<WatchlistItem[]>([]);
   const [leaderboard, setLeaderboard]   = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading]           = useState(true);
-  const [toast, setToast]               = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const [refreshKey, setRefreshKey]     = useState(0);
 
-  // ── UI state ──────────────────────────────────────────────
+  // ── UI ────────────────────────────────────────────────────
   const [selectedStock, setSelectedStock] = useState<StockPrice | null>(null);
   const [centerTab, setCenterTab]         = useState<CenterTab>("chart");
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -64,17 +60,17 @@ export default function DashboardPage() {
   const competition   = participant?.competition ?? null;
   const participantId = participant?.id ?? null;
 
-  // ── Leaderboard fetch ─────────────────────────────────────
-  const loadLeaderboard = useCallback(async (compId: string, startingCash: number) => {
+  // ── Leaderboard ───────────────────────────────────────────
+  const loadLeaderboard = useCallback(async (compId: string, startingCash: number, priceList: StockPrice[]) => {
     const { data } = await supabase
       .from("competition_participants")
       .select("id, user_id, is_bot, bot_strategy, cash_balance, profiles(username)")
       .eq("competition_id", compId);
     if (!data) return;
 
-    const priceMap = new Map(stocks.map(s => [s.symbol, s.price]));
+    const priceMap = new Map(priceList.map(s => [s.symbol, s.price]));
 
-    const entries = await Promise.all(data.map(async (p: any) => {
+    const entries = await Promise.all((data as any[]).map(async (p) => {
       const { data: h } = await supabase.from("holdings").select("symbol, shares").eq("participant_id", p.id);
       const portfolioValue = (h ?? []).reduce((sum: number, hld: any) => sum + hld.shares * (priceMap.get(hld.symbol) ?? 0), 0);
       const totalValue = p.cash_balance + portfolioValue;
@@ -82,7 +78,7 @@ export default function DashboardPage() {
         participant_id: p.id,
         user_id:        p.user_id,
         is_bot:         p.is_bot,
-        username:       p.is_bot ? (p.bot_strategy ?? "Bot") : (p.profiles?.username ?? "Player"),
+        username:       p.is_bot ? (p.bot_strategy ?? "Bot") : ((p.profiles as any)?.username ?? "Player"),
         cash_balance:   p.cash_balance,
         portfolio_value: portfolioValue,
         total_value:    totalValue,
@@ -95,25 +91,23 @@ export default function DashboardPage() {
     entries.sort((a, b) => b.total_value - a.total_value);
     entries.forEach((e, i) => { e.rank = i + 1; });
     setLeaderboard(entries);
-  }, [supabase, stocks]);
+  }, [supabase]);
 
   // ── Main load ─────────────────────────────────────────────
   const loadAll = useCallback(async () => {
     if (!userId) return;
     try {
-      const [comps, allStocks, wl] = await Promise.all([
+      const [comps, allStocks] = await Promise.all([
         getUserCompetitions(userId),
         getAllStockPrices(),
-        getWatchlist(userId),
       ]);
       setStocks(allStocks);
-      setWatchlist(wl.map(w => ({ ...w, id: `${userId}-${w.symbol}`, user_id: userId! })));
 
       const active = (comps as any[]).filter(c => c.competition?.status === "active");
       setCompetitions(active as any);
 
-      if (active.length > 0 && !selectedStock && allStocks.length > 0) {
-        setSelectedStock(allStocks.find(s => s.symbol === "AAPL") ?? allStocks[0]);
+      if (active.length > 0 && allStocks.length > 0) {
+        setSelectedStock(prev => prev ?? (allStocks.find(s => s.symbol === "AAPL") ?? allStocks[0]));
       }
 
       if (active[activeIdx]) {
@@ -122,7 +116,7 @@ export default function DashboardPage() {
         setHoldings(h as Holding[]);
         setTrades(t as Trade[]);
         if (active[activeIdx].competition) {
-          await loadLeaderboard(active[activeIdx].competition.id, active[activeIdx].competition.starting_cash);
+          await loadLeaderboard(active[activeIdx].competition.id, active[activeIdx].competition.starting_cash, allStocks);
         }
       }
     } catch (err) {
@@ -130,7 +124,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId, activeIdx, selectedStock, loadLeaderboard]);
+  }, [userId, activeIdx, loadLeaderboard]);
 
   useEffect(() => {
     if (!authReady) return;
@@ -140,28 +134,16 @@ export default function DashboardPage() {
   }, [authReady, loadAll]);
 
   const handleTradeComplete = useCallback(() => {
-    setToast({ message: "Trade executed successfully!", type: "success" });
-    setTimeout(() => loadAll(), 500);
+    setRefreshKey(k => k + 1);
+    setTimeout(loadAll, 500);
   }, [loadAll]);
-
-  const handleToggleWatch = useCallback(async (symbol: string) => {
-    if (!userId) return;
-    const isWatched = watchlist.some(w => w.symbol === symbol);
-    if (isWatched) {
-      await removeFromWatchlist(userId, symbol);
-    } else {
-      await addToWatchlist(userId, symbol);
-    }
-    const wl = await fetchWatchlist(userId);
-    setWatchlist(wl.map(w => ({ ...w, id: `${userId}-${w.symbol}`, user_id: userId! })));
-  }, [userId, watchlist]);
 
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut();
     window.location.href = "/";
   }, [supabase]);
 
-  // ── Loading / auth screens ─────────────────────────────────
+  // ── Loading ───────────────────────────────────────────────
   if (!authReady || loading) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -188,7 +170,7 @@ export default function DashboardPage() {
           <div className="max-w-lg w-full">
             <h1 className="text-2xl font-bold mb-2 text-center">Welcome to Tradecraft</h1>
             <p className="text-gray-400 text-center mb-8">Start a competition to begin trading</p>
-            <CompetitionSetup userId={userId!} onCreated={loadAll} />
+            <CompetitionSetup userId={userId!} onCreated={() => loadAll()} />
           </div>
         </div>
       </div>
@@ -198,19 +180,16 @@ export default function DashboardPage() {
   const selectedHolding = selectedStock
     ? holdings.find(h => h.symbol === selectedStock.symbol) ?? null
     : null;
-  const watchedSymbols = watchlist.map(w => w.symbol);
 
   return (
     <div className="min-h-screen bg-gray-950 text-white flex flex-col overflow-hidden">
 
-      {/* ── Header ── */}
+      {/* Header */}
       <header className="border-b border-gray-800 px-4 py-2 flex items-center gap-3 shrink-0">
         <div className="flex items-center gap-2 mr-2">
           <span className="text-blue-400 font-bold text-base">TC</span>
           <span className="font-semibold text-sm hidden sm:block">Tradecraft</span>
         </div>
-
-        {/* Competition tabs */}
         <div className="flex gap-1 flex-1 overflow-x-auto">
           {competitions.map((c, i) => (
             <button
@@ -224,23 +203,19 @@ export default function DashboardPage() {
             </button>
           ))}
         </div>
-
-        <button
-          onClick={handleSignOut}
-          className="text-gray-500 hover:text-white text-xs ml-auto shrink-0"
-        >
+        <button onClick={handleSignOut} className="text-gray-500 hover:text-white text-xs ml-auto shrink-0">
           Sign out
         </button>
       </header>
 
-      {/* ── Ticker bar ── */}
+      {/* Ticker bar */}
       {stocks.length > 0 && (
         <div className="shrink-0 border-b border-gray-800">
           <TickerBar stocks={stocks} onSelect={setSelectedStock} />
         </div>
       )}
 
-      {/* ── Main 3-column layout ── */}
+      {/* Main 3-column layout */}
       <div className="flex flex-1 overflow-hidden">
 
         {/* Left: Portfolio */}
@@ -256,19 +231,18 @@ export default function DashboardPage() {
           )}
         </aside>
 
-        {/* Center: Chart + tabs */}
+        {/* Center: tabs + content */}
         <main className="flex-1 flex flex-col overflow-hidden min-w-0">
-          {/* Tab bar */}
-          <div className="flex gap-1 px-3 pt-2 pb-0 border-b border-gray-800 shrink-0 overflow-x-auto">
+          <div className="flex gap-1 px-3 pt-2 border-b border-gray-800 shrink-0 overflow-x-auto">
             {([
-              ["chart",      "Chart"],
-              ["history",    "History"],
-              ["leaderboard","Leaderboard"],
-              ["news",       "News"],
-              ["ai",         "AI Advisor"],
-              ["watchlist",  "Watchlist"],
-              ["limits",     "Limit Orders"],
-              ["alerts",     "Alerts"],
+              ["chart",       "Chart"],
+              ["history",     "History"],
+              ["leaderboard", "Leaderboard"],
+              ["news",        "News"],
+              ["ai",          "AI Advisor"],
+              ["watchlist",   "Watchlist"],
+              ["limits",      "Limit Orders"],
+              ["alerts",      "Alerts"],
             ] as [CenterTab, string][]).map(([key, label]) => (
               <button
                 key={key}
@@ -294,10 +268,12 @@ export default function DashboardPage() {
               />
             )}
             {centerTab === "chart" && !selectedStock && (
-              <div className="flex items-center justify-center h-full text-gray-600">Select a stock to view its chart</div>
+              <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+                Select a stock to view its chart
+              </div>
             )}
             {centerTab === "history" && participantId && (
-              <TradeHistory participantId={participantId} trades={trades} stocks={stocks} />
+              <TradeHistory participantId={participantId} />
             )}
             {centerTab === "leaderboard" && competition && (
               <Leaderboard
@@ -309,33 +285,43 @@ export default function DashboardPage() {
                 onBotsChanged={loadAll}
               />
             )}
-            {centerTab === "news" && selectedStock && (
-              <NewsPanel symbol={selectedStock.symbol} />
+            {centerTab === "news" && (
+              <NewsPanel symbol={selectedStock?.symbol ?? "SPY"} />
             )}
-            {centerTab === "news" && !selectedStock && (
-              <NewsPanel symbol="SPY" />
-            )}
-            {centerTab === "ai" && participant && selectedStock && (
+            {centerTab === "ai" && participant && (
               <AIAdvisor
                 participant={participant}
                 holdings={holdings}
-                selectedStock={selectedStock}
-                prices={stocks}
+                stocks={stocks}
+                recentTrades={trades}
+                startingCash={competition?.starting_cash ?? 10000}
+                onSelectSymbol={(sym) => setSelectedStock(stocks.find(s => s.symbol === sym) ?? null)}
               />
             )}
             {centerTab === "watchlist" && userId && (
               <Watchlist
-                watchlist={watchlist}
+                userId={userId}
                 stocks={stocks}
                 onSelect={setSelectedStock}
-                onRemove={(sym) => handleToggleWatch(sym)}
               />
             )}
             {centerTab === "limits" && participantId && (
-              <LimitOrders participantId={participantId} stocks={stocks} onExecuted={loadAll} />
+              <LimitOrders
+                participantId={participantId}
+                refreshKey={refreshKey}
+                onOrderFilled={loadAll}
+              />
             )}
             {centerTab === "alerts" && userId && (
-              <PriceAlerts userId={userId} stocks={stocks} />
+              <PriceAlerts
+                userId={userId}
+                stocks={stocks}
+                onSelectSymbol={(sym) => {
+                  setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                  setCenterTab("chart");
+                }}
+                refreshKey={refreshKey}
+              />
             )}
           </div>
         </main>
@@ -347,8 +333,6 @@ export default function DashboardPage() {
               stocks={stocks}
               selectedSymbol={selectedStock?.symbol ?? ""}
               onSelect={setSelectedStock}
-              watchedSymbols={watchedSymbols}
-              onToggleWatch={handleToggleWatch}
             />
           </div>
           {selectedStock && participant && (
@@ -363,15 +347,6 @@ export default function DashboardPage() {
           )}
         </aside>
       </div>
-
-      {/* Toast */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
   );
 }

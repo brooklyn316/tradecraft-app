@@ -62,6 +62,7 @@ export default function DashboardPage() {
   const [trades, setTrades]             = useState<Trade[]>([]);
   const [leaderboard, setLeaderboard]   = useState<LeaderboardEntry[]>([]);
   const [participantSnapshots, setParticipantSnapshots] = useState<ParticipantSnapshot[]>([]);
+  const [watchlistSymbols, setWatchlistSymbols] = useState<Set<string>>(new Set());
   const [activityFeed, setActivityFeed] = useState<Array<{
     username: string; is_bot: boolean; symbol: string;
     action: string; shares: number; price: number; executed_at: string;
@@ -121,6 +122,15 @@ export default function DashboardPage() {
         getAllStockPrices(),
       ]);
       setStocks(allStocks);
+
+      // Load watchlist symbols for Watch Picks
+      if (userId) {
+        const { data: wl } = await supabase
+          .from("watchlist")
+          .select("symbol")
+          .eq("user_id", userId);
+        setWatchlistSymbols(new Set((wl ?? []).map((w: any) => w.symbol)));
+      }
 
       const active = (comps as any[]).filter(c => c.competition?.status === "active");
       setCompetitions(active as any);
@@ -320,8 +330,12 @@ export default function DashboardPage() {
   };
 
   const sortedStocks = [...stocks].filter(s => s.change_percent != null);
-  const gainers = [...sortedStocks].sort((a, b) => (b.change_percent ?? 0) - (a.change_percent ?? 0)).slice(0, 8);
-  const losers  = [...sortedStocks].sort((a, b) => (a.change_percent ?? 0) - (b.change_percent ?? 0)).slice(0, 8);
+  const gainers    = [...sortedStocks].sort((a, b) => (b.change_percent ?? 0) - (a.change_percent ?? 0)).slice(0, 8);
+  const losers     = [...sortedStocks].sort((a, b) => (a.change_percent ?? 0) - (b.change_percent ?? 0)).slice(0, 8);
+  const watchPicks = [...sortedStocks]
+    .filter(s => watchlistSymbols.has(s.symbol))
+    .sort((a, b) => Math.abs(b.change_percent ?? 0) - Math.abs(a.change_percent ?? 0))
+    .slice(0, 6);
 
   return (
     <div style={{ minHeight:"100vh", background:"#060a14", color:"#e8eaf0", display:"flex", flexDirection:"column", overflow:"hidden", height:"100vh" }}>
@@ -448,18 +462,83 @@ export default function DashboardPage() {
 
             {bottomTab === "trending" && (
               <div style={{ display:"flex", height:"100%" }}>
-                <div style={{ flex:1, overflowY:"auto" }}>
-                  <div style={{ padding:"7px 12px 3px", fontSize:9, fontWeight:700, color:"#4ade80", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+
+                {/* ── TOP GAINERS ── */}
+                <div style={{ flex:1, overflowY:"auto", borderRight:"1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ padding:"7px 10px 4px", fontSize:9, fontWeight:700, color:"#4ade80", textTransform:"uppercase", letterSpacing:"0.1em" }}>
                     ▲ Top Gainers
                   </div>
-                  {gainers.map(s => <MoverRow key={s.symbol} s={s} />)}
+                  {gainers.map(s => (
+                    <div key={s.symbol} onClick={() => setSelectedStock(s)}
+                      style={{ display:"flex", alignItems:"center", padding:"7px 10px 7px 8px",
+                        borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer",
+                        borderLeft:"2px solid #4ade80", gap:6 }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</div>
+                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</div>
+                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#4ade80", flexShrink:0 }}>
+                        +{(s.change_percent ?? 0).toFixed(2)}%
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div style={{ flex:1, overflowY:"auto", borderLeft:"1px solid rgba(255,255,255,0.06)" }}>
-                  <div style={{ padding:"7px 12px 3px", fontSize:9, fontWeight:700, color:"#f87171", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+
+                {/* ── TOP LOSERS ── */}
+                <div style={{ flex:1, overflowY:"auto", borderRight:"1px solid rgba(255,255,255,0.06)" }}>
+                  <div style={{ padding:"7px 10px 4px", fontSize:9, fontWeight:700, color:"#f87171", textTransform:"uppercase", letterSpacing:"0.1em" }}>
                     ▼ Top Losers
                   </div>
-                  {losers.map(s => <MoverRow key={s.symbol} s={s} />)}
+                  {losers.map(s => (
+                    <div key={s.symbol} onClick={() => setSelectedStock(s)}
+                      style={{ display:"flex", alignItems:"center", padding:"7px 10px 7px 8px",
+                        borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer",
+                        borderLeft:"2px solid #f87171", gap:6 }}>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:800, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</div>
+                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</div>
+                      </div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#f87171", flexShrink:0 }}>
+                        {(s.change_percent ?? 0).toFixed(2)}%
+                      </div>
+                    </div>
+                  ))}
                 </div>
+
+                {/* ── WATCH PICKS ── */}
+                <div style={{ flex:1, overflowY:"auto" }}>
+                  <div style={{ padding:"7px 10px 4px", fontSize:9, fontWeight:700, color:"#fbbf24", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    ★ Watch Picks
+                  </div>
+                  {watchPicks.length === 0 ? (
+                    <div style={{ padding:"12px 10px", fontSize:11, color:"rgba(232,234,240,0.3)", lineHeight:1.5 }}>
+                      Add stocks to your watchlist to see picks here
+                    </div>
+                  ) : watchPicks.map(s => {
+                    const up = (s.change_percent ?? 0) >= 0;
+                    return (
+                      <div key={s.symbol} onClick={() => setSelectedStock(s)}
+                        style={{ display:"flex", alignItems:"center", padding:"7px 10px",
+                          borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer", gap:7 }}>
+                        <div style={{ width:7, height:7, borderRadius:"50%", flexShrink:0,
+                          background: up ? "#4ade80" : "#f87171" }} />
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ fontSize:12, fontWeight:800, color:"rgba(232,234,240,0.9)" }}>{s.symbol}</div>
+                          <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>${s.price.toFixed(2)}</div>
+                        </div>
+                        <div style={{ textAlign:"right", flexShrink:0 }}>
+                          <div style={{ fontSize:9, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
+                            {up ? "↑ Buy" : "↓ Sell"} signal
+                          </div>
+                          <div style={{ fontSize:11, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
+                            {up ? "+" : ""}{(s.change_percent ?? 0).toFixed(2)}%
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
               </div>
             )}
 
@@ -583,42 +662,58 @@ export default function DashboardPage() {
                 symbol={selectedStock?.symbol ?? "SPY"}
                 companyName={selectedStock?.company_name ?? selectedStock?.symbol ?? "S&P 500"}
               />
-            ) : (
-              /* Sectors: show broad ETF proxies from loaded stocks */
-              <div style={{ padding:"8px 0" }}>
-                {[
-                  { label:"Technology",   sym:"QQQ" },
-                  { label:"S&P 500",      sym:"SPY" },
-                  { label:"Financials",   sym:"BAC" },
-                  { label:"Healthcare",   sym:"UNH" },
-                  { label:"Consumer",     sym:"AMZN" },
-                  { label:"Energy",       sym:"XOM" },
-                  { label:"Industrials",  sym:"BA" },
-                  { label:"Real Estate",  sym:"COST" },
-                ].map(({ label, sym }) => {
-                  const s = stocks.find(x => x.symbol === sym);
-                  if (!s) return null;
-                  const up = (s.change_percent ?? 0) >= 0;
-                  return (
-                    <div key={sym}
-                      onClick={() => setSelectedStock(s)}
-                      style={{ display:"flex", alignItems:"center", padding:"8px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer", gap:8 }}
-                    >
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:11, fontWeight:700, color:"rgba(232,234,240,0.85)" }}>{label}</div>
-                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>{sym}</div>
-                      </div>
-                      <div style={{ textAlign:"right" }}>
-                        <div style={{ fontSize:11, fontFamily:"monospace", fontWeight:600, color:"rgba(232,234,240,0.7)" }}>${s.price.toFixed(2)}</div>
-                        <div style={{ fontSize:11, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
-                          {up ? "+" : ""}{(s.change_percent ?? 0).toFixed(2)}%
+            ) : (() => {
+              // Sector groups — average change_percent of member stocks
+              const SECTOR_GROUPS = [
+                { label: "Tech",        syms: ["AAPL","MSFT","GOOGL","AMD","NVDA","META","ADBE"] },
+                { label: "EV & Auto",   syms: ["TSLA","RIVN","F","GM"] },
+                { label: "E-commerce",  syms: ["AMZN","PYPL","COIN","UBER"] },
+                { label: "Streaming",   syms: ["NFLX","SNAP"] },
+                { label: "Index ETFs",  syms: ["SPY","QQQ"] },
+                { label: "Finance",     syms: ["JPM","V","MA","BAC","WFC"] },
+                { label: "Healthcare",  syms: ["JNJ","PFE","UNH"] },
+                { label: "Energy",      syms: ["XOM","CVX"] },
+                { label: "Consumer",    syms: ["WMT","KO","COST"] },
+              ];
+              const priceMap = Object.fromEntries(stocks.map(s => [s.symbol, s]));
+              const sectors = SECTOR_GROUPS.map(g => {
+                const members = g.syms.map(sym => priceMap[sym]).filter(Boolean);
+                if (!members.length) return null;
+                const avg = members.reduce((s, m) => s + (m.change_percent ?? 0), 0) / members.length;
+                return { label: g.label, avg };
+              }).filter((x): x is { label: string; avg: number } => x !== null);
+
+              return (
+                <div style={{ padding:"10px 0 0" }}>
+                  <div style={{ padding:"0 14px 8px", fontSize:9, fontWeight:700,
+                    color:"rgba(232,234,240,0.35)", textTransform:"uppercase", letterSpacing:"0.1em" }}>
+                    Sector Performance
+                  </div>
+                  {sectors.map(({ label, avg }) => {
+                    const up = avg >= 0;
+                    const barW = Math.min(Math.abs(avg) / 4, 1) * 100; // cap at ±4%
+                    return (
+                      <div key={label} style={{ padding:"7px 14px 8px", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
+                          <span style={{ fontSize:12, fontWeight:600, color:"rgba(232,234,240,0.8)" }}>{label}</span>
+                          <span style={{ fontSize:13, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
+                            {up ? "+" : ""}{avg.toFixed(2)}%
+                          </span>
+                        </div>
+                        {/* Progress bar */}
+                        <div style={{ height:3, borderRadius:2, background:"rgba(255,255,255,0.06)" }}>
+                          <div style={{
+                            height:"100%", borderRadius:2, width:`${barW}%`,
+                            background: up ? "#4ade80" : "#f87171",
+                            transition:"width 0.4s ease",
+                          }} />
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
 

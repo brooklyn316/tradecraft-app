@@ -1,26 +1,33 @@
 // Supabase Edge Function: stock-prices
-// Fetches from Alpha Vantage, caches in Supabase, respects rate limits.
+// Yahoo Finance replacement for Alpha Vantage — no API key, no rate limits.
+// Interface is identical to the old function so the front-end needs no changes.
 //
-// Deploy: supabase functions deploy stock-prices
-// Invoke:  POST /functions/v1/stock-prices
-//          Body: { "symbol": "AAPL", "interval": "5min" }
-//          Or:   { "symbols": ["AAPL","MSFT"], "interval": "5min" }
+// POST /functions/v1/stock-prices
+// Body: { "symbols": ["AAPL"], "interval": "5min", "fetchCandles": true }
+// Intervals: "5min" | "15min" | "60min" | "1day"
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const ALPHA_VANTAGE_KEY = Deno.env.get("ALPHA_VANTAGE_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-
-// Cache TTL in seconds — free tier can do ~25/day, so cache aggressively
-const PRICE_CACHE_TTL = 60;        // 60s for current price
-const CANDLE_CACHE_TTL = 5 * 60;  // 5min for OHLCV
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Map our interval labels → Yahoo Finance params
+const INTERVAL_MAP: Record<string, { yInterval: string; yRange: string }> = {
+  "5min":  { yInterval: "5m",  yRange: "1d"  },
+  "15min": { yInterval: "15m", yRange: "5d"  },
+  "60min": { yInterval: "60m", yRange: "30d" },
+  "1day":  { yInterval: "1d",  yRange: "3mo" },
+};
+
+function yahooChartUrl(symbol: string, yInterval: string, yRange: string) {
+  return `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?range=${yRange}&interval=${yInterval}&includePrePost=false`;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -31,148 +38,122 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const symbols: string[] = body.symbols ?? (body.symbol ? [body.symbol] : []);
-    const interval: string = body.interval ?? "5min"; // 5min | 15min | 60min | 1day
+    const symbols: string[] = (body.symbols ?? (body.symbol ? [body.symbol] : []))
+      .map((s: string) => s.toUpperCase());
+    const interval: string = body.interval ?? "5min";
 
     if (symbols.length === 0) {
-      return new Response(JSON.stringify({ error: "symbol or symbols required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "symbols array required" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
+    const intervalCfg = INTERVAL_MAP[interval] ?? INTERVAL_MAP["5min"];
     const results: Record<string, unknown> = {};
 
-    for (const symbol of symbols.map((s) => s.toUpperCase())) {
+    for (const symbol of symbols) {
       try {
-        // 1. Check price cache
-        const { data: cached } = await supabase
-          .from("stock_prices")
-          .select("*")
-          .eq("symbol", symbol)
-          .single();
+        // Fetch chart data — gives us current price + OHLCV history in one call
+        const chartRes = await fetch(
+          yahooChartUrl(symbol, intervalCfg.yInterval, intervalCfg.yRange),
+          { headers: { "User-Agent": "Mozilla/5.0" } }
+        );
 
-        const cacheAge = cached
-          ? (Date.now() - new Date(cached.updated_at).getTime()) / 1000
-          : Infinity;
-
-        // 2. Return cached if fresh
-        if (cached && cacheAge < PRICE_CACHE_TTL) {
-          results[symbol] = { ...cached, fromCache: true };
+        if (!chartRes.ok) {
+          results[symbol] = { error: `Yahoo fetch failed: ${chartRes.status}` };
           continue;
         }
 
-        // 3. Fetch from Alpha Vantage — GLOBAL_QUOTE for current price
-        const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}`;
-        const quoteRes = await fetch(quoteUrl);
-        const quoteData = await quoteRes.json();
-        const q = quoteData["Global Quote"];
+        const json = await chartRes.json();
+        const chart = json?.chart?.result?.[0];
 
-        if (!q || !q["05. price"]) {
-          // API limit hit or bad symbol — return cached data if available
-          if (cached) {
-            results[symbol] = { ...cached, fromCache: true, stale: true };
-          } else {
-            results[symbol] = { error: "No data available", symbol };
-          }
+        if (!chart) {
+          results[symbol] = { error: "No chart data returned" };
           continue;
         }
 
+        const meta = chart.meta;
+        const timestamps: number[] = chart.timestamp ?? [];
+        const ohlcv = chart.indicators?.quote?.[0] ?? {};
+
+        const opens: number[]   = ohlcv.open   ?? [];
+        const highs: number[]   = ohlcv.high   ?? [];
+        const lows: number[]    = ohlcv.low    ?? [];
+        const closes: number[]  = ohlcv.close  ?? [];
+        const volumes: number[] = ohlcv.volume ?? [];
+
+        // Current price
+        const currentPrice = meta.regularMarketPrice ?? closes[closes.length - 1] ?? 0;
+        const prevClose    = meta.chartPreviousClose ?? meta.previousClose ?? null;
+        const changeAmt    = prevClose ? currentPrice - prevClose : null;
+        const changePct    = prevClose ? ((currentPrice - prevClose) / prevClose) * 100 : null;
+
+        // Upsert stock_prices
         const priceRow = {
           symbol,
-          price: parseFloat(q["05. price"]),
-          open: parseFloat(q["02. open"]),
-          high: parseFloat(q["03. high"]),
-          low: parseFloat(q["04. low"]),
-          prev_close: parseFloat(q["08. previous close"]),
-          change_amount: parseFloat(q["09. change"]),
-          change_percent: parseFloat(q["10. change percent"].replace("%", "")),
-          volume: parseInt(q["06. volume"]),
+          company_name: meta.longName ?? meta.shortName ?? null,
+          price: currentPrice,
+          open: meta.regularMarketOpen ?? opens[opens.length - 1] ?? null,
+          high: meta.regularMarketDayHigh ?? highs[highs.length - 1] ?? null,
+          low: meta.regularMarketDayLow ?? lows[lows.length - 1] ?? null,
+          prev_close: prevClose,
+          change_amount: changeAmt,
+          change_percent: changePct,
+          volume: meta.regularMarketVolume ?? volumes[volumes.length - 1] ?? null,
+          week_52_high: meta.fiftyTwoWeekHigh ?? null,
+          week_52_low: meta.fiftyTwoWeekLow ?? null,
           updated_at: new Date().toISOString(),
         };
 
-        // 4. Upsert to cache
-        await supabase.from("stock_prices").upsert(priceRow);
-        results[symbol] = { ...priceRow, fromCache: false };
+        await supabase.from("stock_prices").upsert(priceRow, { onConflict: "symbol" });
 
-        // 5. Fetch OHLCV candles if interval requested
-        await fetchCandles(supabase, symbol, interval);
+        // Upsert stock_candles
+        const candleRows: Array<{
+          symbol: string; interval: string; time: string;
+          open: number; high: number; low: number; close: number; volume: number | null;
+        }> = [];
+
+        for (let i = 0; i < timestamps.length; i++) {
+          const o = opens[i];
+          const h = highs[i];
+          const l = lows[i];
+          const c = closes[i];
+          if (o == null || h == null || l == null || c == null) continue;
+
+          candleRows.push({
+            symbol,
+            interval,
+            time: new Date(timestamps[i] * 1000).toISOString(),
+            open: o,
+            high: h,
+            low: l,
+            close: c,
+            volume: volumes[i] ?? null,
+          });
+        }
+
+        if (candleRows.length > 0) {
+          await supabase
+            .from("stock_candles")
+            .upsert(candleRows, { onConflict: "symbol,interval,time" });
+        }
+
+        results[symbol] = { ...priceRow, candlesInserted: candleRows.length, fromCache: false };
 
       } catch (err) {
         results[symbol] = { error: (err as Error).message };
       }
     }
 
-    return new Response(JSON.stringify(results), {
+    return new Response(JSON.stringify({ ok: true, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: (err as Error).message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });
-
-async function fetchCandles(
-  supabase: ReturnType<typeof createClient>,
-  symbol: string,
-  interval: string
-) {
-  // Check candle cache freshness
-  const { data: latestCandle } = await supabase
-    .from("stock_candles")
-    .select("time")
-    .eq("symbol", symbol)
-    .eq("interval", interval)
-    .order("time", { ascending: false })
-    .limit(1)
-    .single();
-
-  const cacheAge = latestCandle
-    ? (Date.now() - new Date(latestCandle.time).getTime()) / 1000
-    : Infinity;
-
-  if (cacheAge < CANDLE_CACHE_TTL) return;
-
-  // Map our interval to Alpha Vantage function
-  const avFunction = interval === "1day"
-    ? "TIME_SERIES_DAILY"
-    : "TIME_SERIES_INTRADAY";
-
-  let url = `https://www.alphavantage.co/query?function=${avFunction}&symbol=${symbol}&apikey=${ALPHA_VANTAGE_KEY}&outputsize=compact`;
-  if (avFunction === "TIME_SERIES_INTRADAY") {
-    url += `&interval=${interval}`;
-  }
-
-  const res = await fetch(url);
-  const data = await res.json();
-
-  const seriesKey = interval === "1day"
-    ? "Time Series (Daily)"
-    : `Time Series (${interval})`;
-
-  const series = data[seriesKey];
-  if (!series) return;
-
-  const candles = Object.entries(series).map(([time, values]: [string, unknown]) => {
-    const v = values as Record<string, string>;
-    return {
-      symbol,
-      interval,
-      time: new Date(time).toISOString(),
-      open: parseFloat(v["1. open"]),
-      high: parseFloat(v["2. high"]),
-      low: parseFloat(v["3. low"]),
-      close: parseFloat(v["4. close"]),
-      volume: parseInt(v["5. volume"]),
-    };
-  });
-
-  if (candles.length > 0) {
-    await supabase
-      .from("stock_candles")
-      .upsert(candles, { onConflict: "symbol,interval,time" });
-  }
-}

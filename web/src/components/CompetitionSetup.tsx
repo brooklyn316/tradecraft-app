@@ -71,14 +71,12 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
       return;
     }
 
-    // Add bot if mode is "bot"
+    // Add all 3 bots if mode is "bot"
     if (mode === "bot") {
-      await supabase.from("competition_participants").insert({
-        competition_id: comp.id,
-        user_id: null,
-        is_bot: true,
-        bot_strategy: "index",
-        cash_balance: 10000,
+      await fetch("/api/bots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ competitionId: comp.id, startingCash: 10000 }),
       });
     }
 

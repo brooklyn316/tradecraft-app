@@ -357,8 +357,8 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Chart or History content */}
-          <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+          {/* Chart or History content — fixed height so bottom panel is always visible */}
+          <div style={{ flexShrink:0, overflow:"hidden" }}>
             {centerTab === "chart" && (
               selectedStock ? (
                 <TradingChart
@@ -379,22 +379,22 @@ export default function DashboardPage() {
                   isOverview
                 />
               ) : (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", flex:1, color:"rgba(232,234,240,0.4)", fontSize:13 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:360, color:"rgba(232,234,240,0.4)", fontSize:13 }}>
                   Select a stock to view its chart
                 </div>
               )
             )}
             {centerTab === "history" && participantId && (
-              <div style={{ padding:12, overflowY:"auto", flex:1 }}>
+              <div style={{ padding:12, maxHeight:360, overflowY:"auto" }}>
                 <TradeHistory participantId={participantId} />
               </div>
             )}
           </div>
 
           {/* Bottom collapsible panels: Leaderboard | Bots */}
-          <div style={{ flexShrink:0, borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:36, background:"rgba(255,255,255,0.01)" }}>
             {/* Panel toggle buttons */}
-            <div style={{ display:"flex", gap:0, padding:"0 12px", background:"rgba(255,255,255,0.01)" }}>
+            <div style={{ display:"flex", gap:0, padding:"0 12px", flexShrink:0 }}>
               {([["leaderboard","Leaderboard"],["bots","Bots"]] as [BottomPanel & string, string][]).map(([key, label]) => (
                 <button key={key}
                   onClick={() => setBottomPanel(p => p === key ? null : key)}
@@ -411,7 +411,7 @@ export default function DashboardPage() {
             </div>
             {/* Expanded panel content */}
             {bottomPanel && (
-              <div style={{ maxHeight:220, overflowY:"auto", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+              <div style={{ flex:1, overflowY:"auto", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
                 {bottomPanel === "leaderboard" && competition && (
                   <div style={{ padding:"0 12px 12px" }}>
                     <Leaderboard

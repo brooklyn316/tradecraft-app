@@ -184,6 +184,7 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
               return (
                 <button key={h.symbol} onClick={() => onSelectSymbol(h.symbol)}
                   style={{ width: "100%", padding: "11px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", display: "block" }}>
+                  {/* Top row: symbol + P&L badge + market value */}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -194,8 +195,8 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
                           {h.pnl >= 0 ? "+" : ""}{h.pnlPercent.toFixed(1)}%
                         </span>
                       </div>
-                      <div style={{ fontSize: 10, color: "rgba(232,234,240,0.5)", marginTop: 2, fontFamily: "monospace" }}>
-                        {h.shares.toFixed(0)} sh · avg ${h.avg_cost.toFixed(2)}
+                      <div style={{ fontSize: 10, color: "rgba(232,234,240,0.45)", marginTop: 2 }}>
+                        {h.shares.toFixed(0)} shares
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
@@ -203,6 +204,20 @@ export default function Portfolio({ participant, holdings, prices, startingCash,
                       <div style={{ fontSize: 11, fontFamily: "monospace", marginTop: 2, color: h.pnl >= 0 ? "#4ade80" : "#f87171" }}>
                         {h.pnl >= 0 ? "+" : ""}{formatCurrency(h.pnl)}
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Price comparison row */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7,
+                    padding: "5px 8px", borderRadius: 6, background: "rgba(255,255,255,0.025)" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 8, color: "rgba(232,234,240,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 1 }}>Bought</div>
+                      <div style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 600, color: "rgba(232,234,240,0.6)" }}>${h.avg_cost.toFixed(2)}</div>
+                    </div>
+                    <div style={{ fontSize: 14, color: h.pnl >= 0 ? "rgba(74,222,128,0.5)" : "rgba(248,113,113,0.5)" }}>→</div>
+                    <div style={{ flex: 1, textAlign: "right" }}>
+                      <div style={{ fontSize: 8, color: "rgba(232,234,240,0.35)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 1 }}>Now</div>
+                      <div style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: h.pnl >= 0 ? "#4ade80" : "#f87171" }}>${h.price.toFixed(2)}</div>
                     </div>
                   </div>
                   {/* Allocation bar */}

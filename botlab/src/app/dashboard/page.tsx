@@ -1,17 +1,14 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 // ============================================================
 // Tradecraft Bot Lab — Dashboard v2
 // 51 bots, 7 groups, AI super bot, trade log with reasoning.
 // ============================================================
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -278,6 +275,11 @@ function MarketClock() {
 type Tab = "leaderboard" | "groups" | "equity" | "trades" | "superbot";
 
 export default function DashboardPage() {
+  const supabase = useMemo(() => createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  ), []);
+
   const [bots, setBots]           = useState<BotRow[]>([]);
   const [snapshots, setSnapshots] = useState<SnapshotRow[]>([]);
   const [trades, setTrades]       = useState<TradeRow[]>([]);

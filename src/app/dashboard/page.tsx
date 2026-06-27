@@ -357,8 +357,8 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Chart or History content — fixed height so bottom panel is always visible */}
-          <div style={{ flexShrink:0, overflow:"hidden" }}>
+          {/* Chart or History content */}
+          <div style={{ flex:"0 0 62%", overflow:"hidden", display:"flex", flexDirection:"column" }}>
             {centerTab === "chart" && (
               selectedStock ? (
                 <TradingChart
@@ -392,7 +392,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Bottom collapsible panels: Leaderboard | Bots */}
-          <div style={{ flex:1, display:"flex", flexDirection:"column", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:36, background:"rgba(255,255,255,0.01)" }}>
+          <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"column", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:36, background:"rgba(255,255,255,0.01)" }}>
             {/* Panel toggle buttons */}
             <div style={{ display:"flex", gap:0, padding:"0 12px", flexShrink:0 }}>
               {([["leaderboard","Leaderboard"],["bots","Bots"]] as [BottomPanel & string, string][]).map(([key, label]) => (

@@ -186,18 +186,15 @@ export async function runA5(ctx: BotContext): Promise<string[]> {
     return ["A5: idle (random)"];
   }
 
-  const portfolioTotal = totalPortfolioValue(holdings, prices, portfolio.cash_balance);
   const action = Math.random() < 0.5 ? "buy" : "sell";
 
   if (action === "sell" && holdings.length > 0) {
-    // Pick a random holding and sell a random fraction
     const holding = holdings[Math.floor(Math.random() * holdings.length)];
-    const sellFraction = 0.2 + Math.random() * 0.8; // sell 20–100%
+    const sellFraction = 0.2 + Math.random() * 0.8;
     const sharesToSell = holding.shares * sellFraction;
     const result = await executeTrade({ ctx, symbol: holding.symbol, action: "sell", amount: sharesToSell, reason: "Chaos Bot random sell" });
     logs.push(`A5 random sell: ${result.message}`);
   } else if (action === "buy" && portfolio.cash_balance > 10) {
-    // Pick a random symbol and buy 5–20% of cash
     const symbol    = GROUP_A_ALL_SYMBOLS[Math.floor(Math.random() * GROUP_A_ALL_SYMBOLS.length)];
     const spendFrac = 0.05 + Math.random() * 0.15;
     const spend     = portfolio.cash_balance * spendFrac;
@@ -205,6 +202,111 @@ export async function runA5(ctx: BotContext): Promise<string[]> {
     logs.push(`A5 random buy: ${result.message}`);
   } else {
     logs.push("A5: no valid action (no holdings or no cash)");
+  }
+
+  return logs;
+}
+
+// ── A2B — Momentum Aggressive ─────────────────────────────────
+// Same as A2 but triggers on >0.5% moves. More frequent trading.
+
+export async function runA2B(ctx: BotContext): Promise<string[]> {
+  const logs: string[] = [];
+  const { holdings, prices, portfolio } = ctx;
+
+  for (const holding of [...holdings]) {
+    const priceRow = prices.get(holding.symbol);
+    if (!priceRow?.change_percent) continue;
+    if (priceRow.change_percent < -1) {
+      const result = await executeTrade({ ctx, symbol: holding.symbol, action: "sell", amount: "all", reason: `A2B cut: down ${priceRow.change_percent.toFixed(2)}% today` });
+      logs.push(`A2B cut ${holding.symbol}: ${result.message}`);
+    }
+  }
+
+  const gainers = GROUP_A_ALL_SYMBOLS
+    .map(s => ({ symbol: s, changePct: prices.get(s)?.change_percent ?? 0 }))
+    .filter(x => x.changePct > 0.5)
+    .sort((a, b) => b.changePct - a.changePct)
+    .slice(0, 3);
+
+  for (const { symbol, changePct } of gainers) {
+    const spend = portfolio.cash_balance * 0.30;
+    if (spend < 1) break;
+    const result = await executeTrade({ ctx, symbol, action: "buy", amount: spend, reason: `A2B: up ${changePct.toFixed(2)}% (>0.5% threshold)` });
+    logs.push(`A2B buy ${symbol}: ${result.message}`);
+  }
+
+  return logs;
+}
+
+// ── A3B — Value Conservative ──────────────────────────────────
+// Like A3 but requires within 5% of 52-week low. Sells at +20%.
+
+export async function runA3B(ctx: BotContext): Promise<string[]> {
+  const logs: string[] = [];
+  const { holdings, prices, portfolio } = ctx;
+
+  for (const holding of [...holdings]) {
+    const price = prices.get(holding.symbol)?.price;
+    if (!price) continue;
+    const gain = (price - holding.avg_cost) / holding.avg_cost * 100;
+    if (gain >= 20) {
+      const result = await executeTrade({ ctx, symbol: holding.symbol, action: "sell", amount: "all", reason: `A3B profit: +${gain.toFixed(1)}% target hit` });
+      logs.push(`A3B sell ${holding.symbol}: ${result.message}`);
+    }
+  }
+
+  const candidates = GROUP_A_ALL_SYMBOLS.filter(s => {
+    const p = prices.get(s);
+    if (!p?.week_52_low || !p.price) return false;
+    return (p.price - p.week_52_low) / p.week_52_low * 100 <= 5;
+  });
+
+  for (const symbol of candidates.slice(0, 2)) {
+    const spend = portfolio.cash_balance * 0.25;
+    if (spend < 1) break;
+    const p = prices.get(symbol)!;
+    const pctAboveLow = ((p.price - p.week_52_low!) / p.week_52_low! * 100).toFixed(1);
+    const result = await executeTrade({ ctx, symbol, action: "buy", amount: spend, reason: `A3B: ${pctAboveLow}% above 52-week low (strict ≤5% threshold)` });
+    logs.push(`A3B buy ${symbol}: ${result.message}`);
+  }
+
+  return logs;
+}
+
+// ── A6 — Growth Chaser ────────────────────────────────────────
+// Buys stocks within 5% of their 52-week HIGH.
+// Thesis: stocks near highs are in strong uptrends — ride the momentum.
+// Sells if they fall >8% from avg cost (trend break).
+
+export async function runA6(ctx: BotContext): Promise<string[]> {
+  const logs: string[] = [];
+  const { holdings, prices, portfolio } = ctx;
+
+  for (const holding of [...holdings]) {
+    const price = prices.get(holding.symbol)?.price;
+    if (!price) continue;
+    const pnlPct = (price - holding.avg_cost) / holding.avg_cost * 100;
+    if (pnlPct <= -8) {
+      const result = await executeTrade({ ctx, symbol: holding.symbol, action: "sell", amount: "all", reason: `A6 trend break: ${pnlPct.toFixed(1)}% from entry` });
+      logs.push(`A6 stop ${holding.symbol}: ${result.message}`);
+    }
+  }
+
+  const nearHighs = GROUP_A_ALL_SYMBOLS.filter(s => {
+    const p = prices.get(s);
+    if (!p?.week_52_high || !p.price) return false;
+    return (p.week_52_high - p.price) / p.week_52_high * 100 <= 5;
+  });
+
+  for (const symbol of nearHighs.slice(0, 2)) {
+    if (holdings.find(h => h.symbol === symbol)) continue;
+    const spend = portfolio.cash_balance * 0.30;
+    if (spend < 1) break;
+    const p = prices.get(symbol)!;
+    const pctFromHigh = ((p.week_52_high! - p.price) / p.week_52_high! * 100).toFixed(1);
+    const result = await executeTrade({ ctx, symbol, action: "buy", amount: spend, reason: `A6: ${pctFromHigh}% below 52-week high — momentum extension` });
+    logs.push(`A6 buy ${symbol}: ${result.message}`);
   }
 
   return logs;

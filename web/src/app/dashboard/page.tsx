@@ -25,7 +25,7 @@ import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
 import StockPredict     from "@/components/StockPredict";
 
-type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition";
+type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders";
 type NewsTab   = "news" | "sectors";
 
@@ -62,6 +62,10 @@ export default function DashboardPage() {
   const [trades, setTrades]             = useState<Trade[]>([]);
   const [leaderboard, setLeaderboard]   = useState<LeaderboardEntry[]>([]);
   const [participantSnapshots, setParticipantSnapshots] = useState<ParticipantSnapshot[]>([]);
+  const [activityFeed, setActivityFeed] = useState<Array<{
+    username: string; is_bot: boolean; symbol: string;
+    action: string; shares: number; price: number; executed_at: string;
+  }>>([]);
   const [loading, setLoading]           = useState(true);
   const [refreshKey, setRefreshKey]     = useState(0);
 
@@ -160,6 +164,29 @@ export default function DashboardPage() {
               holdings:     holdingsByParticipant[p.id] ?? [],
             }));
             setParticipantSnapshots(snapshots);
+
+            // Activity feed: last 60 trades across all participants
+            const { data: feedTrades } = await supabase
+              .from("trades")
+              .select("participant_id, symbol, action, shares, price, executed_at")
+              .in("participant_id", participants.map((p: any) => p.id))
+              .order("executed_at", { ascending: false })
+              .limit(60);
+
+            const usernameMap: Record<string, { username: string; is_bot: boolean }> = {};
+            for (const snap of snapshots) usernameMap[snap.id] = { username: snap.username, is_bot: snap.is_bot };
+
+            setActivityFeed(
+              (feedTrades ?? []).map((t: any) => ({
+                username: usernameMap[t.participant_id]?.username ?? "Unknown",
+                is_bot:   usernameMap[t.participant_id]?.is_bot ?? false,
+                symbol:   t.symbol,
+                action:   t.action,
+                shares:   t.shares,
+                price:    t.price,
+                executed_at: t.executed_at,
+              }))
+            );
           }
         }
       }
@@ -240,6 +267,16 @@ export default function DashboardPage() {
   }
 
   const spy = stocks.find(s => s.symbol === "SPY");
+
+  // ── Time helper ───────────────────────────────────────────
+  function timeAgo(iso: string) {
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }
 
   // ── Shared button styles ──────────────────────────────────
   const tabBtn = (active: boolean): React.CSSProperties => ({
@@ -383,11 +420,12 @@ export default function DashboardPage() {
             scrollbarWidth: "none",
           }}>
             {([
+              ["competition", "COMPETITION"],
+              ["activity",    "⚡ ACTIVITY"],
               ["markets",     "LIVE MARKETS"],
               ["trending",    "TRENDING"],
               ["watchlist",   "★ WATCHLIST"],
               ["alerts",      "🔔 ALERTS"],
-              ["competition", "COMPETITION"],
             ] as [BottomTab, string][]).map(([key, label]) => (
               <button key={key} onClick={() => setBottomTab(key)} style={tabBtn(bottomTab === key)}>
                 {label}
@@ -395,8 +433,8 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* Bottom content panel */}
-          <div style={{ height: 220, overflowY: "auto", flexShrink: 0 }}>
+          {/* Bottom content panel — fixed height so it's always visible */}
+          <div style={{ height: 250, overflowY: "auto", flexShrink: 0 }}>
 
             {bottomTab === "markets" && (
               <StockList
@@ -449,6 +487,55 @@ export default function DashboardPage() {
                 competitionId={competition.id}
                 onBotsChanged={loadAll}
               />
+            )}
+
+            {bottomTab === "activity" && (
+              <div>
+                {activityFeed.length === 0 ? (
+                  <div style={{ padding:24, textAlign:"center", color:"rgba(232,234,240,0.35)", fontSize:12 }}>
+                    No trades yet — be the first to make a move!
+                  </div>
+                ) : activityFeed.map((t, i) => {
+                  const buy = t.action === "buy";
+                  return (
+                    <div key={i} style={{
+                      display:"flex", alignItems:"center", padding:"7px 14px",
+                      borderBottom:"1px solid rgba(255,255,255,0.04)", gap:10,
+                    }}>
+                      {/* Colour dot */}
+                      <div style={{ width:7, height:7, borderRadius:"50%", flexShrink:0,
+                        background: buy ? "#4ade80" : "#f87171" }} />
+                      {/* Who */}
+                      <span style={{
+                        fontSize:11, fontWeight:700, flexShrink:0,
+                        color: t.is_bot ? "#a78bfa" : "rgba(232,234,240,0.9)",
+                      }}>{t.username}</span>
+                      {/* Action */}
+                      <span style={{ fontSize:11, color: buy ? "#4ade80" : "#f87171", fontWeight:600, flexShrink:0 }}>
+                        {buy ? "bought" : "sold"}
+                      </span>
+                      {/* Detail */}
+                      <span style={{ fontSize:11, fontWeight:800, color:"rgba(232,234,240,0.85)", flexShrink:0 }}>
+                        {t.shares}× {t.symbol}
+                      </span>
+                      <span style={{ fontSize:10, color:"rgba(232,234,240,0.4)", fontFamily:"monospace", flexShrink:0 }}>
+                        @ ${t.price.toFixed(2)}
+                      </span>
+                      {/* Click to chart */}
+                      <button
+                        onClick={() => setSelectedStock(stocks.find(s => s.symbol === t.symbol) ?? null)}
+                        style={{ padding:"1px 6px", fontSize:9, borderRadius:4, cursor:"pointer",
+                          background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)",
+                          color:"rgba(232,234,240,0.4)", flexShrink:0 }}
+                      >Chart</button>
+                      {/* Time — pushed right */}
+                      <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(232,234,240,0.3)", whiteSpace:"nowrap" }}>
+                        {timeAgo(t.executed_at)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
 
           </div>

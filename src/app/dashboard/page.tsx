@@ -425,8 +425,8 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Chart area — 62% of center column */}
-          <div style={{ flex:"0 0 62%", overflow:"hidden", position:"relative" }}>
+          {/* Chart area — fills remaining space above bottom panel */}
+          <div style={{ flex:1, overflow:"hidden", position:"relative", minHeight:0 }}>
             {/* StockPredict overlay */}
             {predictStock && (
               <StockPredict
@@ -461,8 +461,8 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Bottom section — 38% of center column, row: [tabs | news] */}
-          <div style={{ flex:"0 0 38%", display:"flex", flexDirection:"row", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
+          {/* Bottom section — 45% of center column, row: [tabs | news] */}
+          <div style={{ flex:"0 0 45%", display:"flex", flexDirection:"row", borderTop:"1px solid rgba(255,255,255,0.06)", minHeight:0 }}>
 
           {/* Left: tab bar + content */}
           <div style={{ flex:1, display:"flex", flexDirection:"column", minWidth:0, overflow:"hidden" }}>
@@ -484,7 +484,20 @@ export default function DashboardPage() {
               ["competition", "COMPETITION"],
               ["activity",    "⚡ ACTIVITY"],
             ] as [BottomTab, string][]).map(([key, label]) => (
-              <button key={key} onClick={() => setBottomTab(key)} style={tabBtn(bottomTab === key)}>
+              <button key={key} onClick={() => setBottomTab(key)} style={{
+                padding: "8px 10px",
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: "pointer",
+                border: "none",
+                background: "transparent",
+                whiteSpace: "nowrap",
+                letterSpacing: "0.04em",
+                color: bottomTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
+                borderBottom: bottomTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
+                transition: "all 0.15s",
+                flexShrink: 0,
+              }}>
                 {label}
               </button>
             ))}

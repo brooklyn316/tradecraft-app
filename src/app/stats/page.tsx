@@ -8,7 +8,7 @@ import { getSupabaseClient } from "@/lib/supabase";
 const SECTORS: Record<string, string> = {
   AAPL:"Tech", MSFT:"Tech", GOOGL:"Tech", GOOG:"Tech", META:"Tech",
   NVDA:"Tech", AMD:"Tech", TSLA:"Tech", INTC:"Tech", CRM:"Tech",
-  ORCL:"Tech", ADBE:"Tech", NFLX:"Tech", UBER:"Tech", LYFT:"Tech",
+  ORCL:"Tech", ADBE:"Tech", UBER:"Tech", LYFT:"Tech",
   SNOW:"Tech", PLTR:"Tech", COIN:"Tech", SQ:"Tech", PYPL:"Tech",
   JPM:"Finance", BAC:"Finance", GS:"Finance", WFC:"Finance", MS:"Finance",
   C:"Finance", AXP:"Finance", BLK:"Finance", SCHW:"Finance",

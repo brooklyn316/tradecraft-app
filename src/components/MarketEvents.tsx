@@ -163,14 +163,19 @@ export default function MarketEvents({ stocks, holdings = [], onSelectStock, onS
     return () => clearInterval(t);
   }, []);
 
-  // Auto-rotate banner every 12 seconds
+  // Auto-rotate: 30s if you hold the stock, 12s otherwise
   useEffect(() => {
     if (events.length <= 1) return;
-    const t = setInterval(() => {
+    const active = events[Math.min(activeIdx, events.length - 1)];
+    const isHeld = active?.type === "price_alert" && active.symbol
+      ? holdings.some(h => h.symbol === active.symbol)
+      : false;
+    const delay = isHeld ? 30_000 : 12_000;
+    const t = setTimeout(() => {
       setActiveIdx(i => (i + 1) % events.length);
-    }, 12_000);
-    return () => clearInterval(t);
-  }, [events.length]);
+    }, delay);
+    return () => clearTimeout(t);
+  }, [activeIdx, events, holdings]);
 
   const dismiss = useCallback((id: string) => {
     setDismissed(prev => new Set([...prev, id]));

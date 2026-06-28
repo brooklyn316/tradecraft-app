@@ -426,6 +426,28 @@ export default function DashboardPage() {
         </button>
       </header>
 
+      {/* ── Ended competition banner ── */}
+      {competitions.map(c => {
+        const ended = c.competition?.end_date && new Date(c.competition.end_date) < new Date();
+        if (!ended) return null;
+        return (
+          <div key={c.id} style={{ background:"rgba(125,211,176,0.08)", borderBottom:"1px solid rgba(125,211,176,0.2)",
+            padding:"8px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:14 }}>🏁</span>
+              <span style={{ fontSize:12, color:"rgba(232,234,240,0.8)", fontWeight:600 }}>
+                <span style={{ color:"#7dd3b0" }}>{c.competition?.name}</span> has ended — see how you did
+              </span>
+            </div>
+            <button onClick={() => router.push(`/results/${c.competition?.id}`)}
+              style={{ padding:"5px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer",
+                background:"rgba(125,211,176,0.15)", border:"1px solid rgba(125,211,176,0.35)", color:"#7dd3b0" }}>
+              View Results →
+            </button>
+          </div>
+        );
+      })}
+
       {/* ── Ticker bar ── */}
       {stocks.length > 0 && (
         <TickerBar stocks={stocks} onSelect={handleTickerSelect} />

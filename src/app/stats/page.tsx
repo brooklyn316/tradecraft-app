@@ -715,12 +715,20 @@ export default function StatsPage() {
                           {g.rank === 1 ? "🥇" : `#${g.rank}`} / {g.totalParticipants}
                         </td>
                         <td style={{ padding: "10px 12px" }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 5,
-                            background: g.won ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.05)",
-                            border: `1px solid ${g.won ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.08)"}`,
-                            color: g.won ? "#4ade80" : "rgba(232,234,240,0.5)" }}>
-                            {g.won ? "WON" : g.status === "active" ? "Live" : "Finished"}
-                          </span>
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 5,
+                              background: g.won ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.05)",
+                              border: `1px solid ${g.won ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.08)"}`,
+                              color: g.won ? "#4ade80" : "rgba(232,234,240,0.5)" }}>
+                              {g.won ? "WON" : g.status === "active" ? "Live" : "Finished"}
+                            </span>
+                            <button
+                              onClick={() => router.push(`/results/${g.competitionId}`)}
+                              style={{ fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:5, cursor:"pointer",
+                                background:"rgba(125,211,176,0.07)", border:"1px solid rgba(125,211,176,0.2)", color:"#7dd3b0" }}>
+                              Results →
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

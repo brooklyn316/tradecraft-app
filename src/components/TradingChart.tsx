@@ -153,8 +153,8 @@ export default function TradingChart({
 
   useEffect(() => {
     loadCandles();
-    const timer = setInterval(() => loadCandles(), 60_000);
-    return () => clearInterval(timer);
+    const timer = window.setInterval(() => { void loadCandles(); }, 60_000);
+    return () => window.clearInterval(timer);
   }, [loadCandles]);
 
   useEffect(() => {

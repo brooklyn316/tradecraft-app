@@ -111,7 +111,6 @@ export type LineData = {
   value: number;
 };
 
-export type ChartType = "candlestick" | "line";
 
 export type LeaderboardEntry = {
   participant_id: string;

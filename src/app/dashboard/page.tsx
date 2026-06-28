@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
 import {
   getAllStockPrices, getUserCompetitions, getHoldings, getRecentTrades,
@@ -43,6 +44,7 @@ interface ParticipantSnapshot {
 
 export default function DashboardPage() {
   const supabase = getSupabaseClient();
+  const router = useRouter();
 
   // ── Auth ──────────────────────────────────────────────────
   const [userId, setUserId]       = useState<string | null>(null);
@@ -410,6 +412,13 @@ export default function DashboardPage() {
             {username}
           </span>
         )}
+
+        <button onClick={() => router.push("/stats")}
+          style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 11px", borderRadius:8, fontSize:11,
+            fontWeight:700, cursor:"pointer", flexShrink:0,
+            border:"1px solid rgba(125,211,176,0.2)", background:"rgba(125,211,176,0.07)", color:"#7dd3b0" }}>
+          📊 Stats
+        </button>
 
         <button onClick={handleSignOut}
           style={{ fontSize:11, color:"rgba(232,234,240,0.60)", background:"none", border:"none", cursor:"pointer", flexShrink:0 }}>

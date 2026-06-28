@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { StockPrice } from "@/types";
+import type { StockPrice, Holding } from "@/types";
 
 interface MarketEventsProps {
   stocks: StockPrice[];
+  holdings?: Holding[];
   onSelectStock: (stock: StockPrice) => void;
   onSwitchToTrade: () => void;
 }
@@ -107,7 +108,7 @@ const SENTIMENT_LABEL = {
   neutral: { text: "WATCH",   color: "#f59e0b" },
 };
 
-export default function MarketEvents({ stocks, onSelectStock, onSwitchToTrade }: MarketEventsProps) {
+export default function MarketEvents({ stocks, holdings = [], onSelectStock, onSwitchToTrade }: MarketEventsProps) {
   const [events, setEvents]           = useState<GameEvent[]>([]);
   const [activeIdx, setActiveIdx]     = useState(0);
   const [dismissed, setDismissed]     = useState<Set<string>>(new Set());
@@ -251,25 +252,71 @@ export default function MarketEvents({ stocks, onSelectStock, onSwitchToTrade }:
         </div>
 
         {/* Action row */}
-        {active.stock && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-            <button
-              onClick={() => handleTrade(active)}
-              style={{
-                padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer",
-                background: style.accent + "20", border: `1px solid ${style.accent}50`, color: style.accent,
-                transition: "all 0.15s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = style.accent + "35")}
-              onMouseLeave={e => (e.currentTarget.style.background = style.accent + "20")}
-            >
-              Trade {active.symbol} →
-            </button>
-            <span style={{ fontSize: 10, fontFamily: "monospace", color: "rgba(232,234,240,0.5)" }}>
-              ${active.stock.price.toFixed(2)} · {(active.stock.change_percent ?? 0) >= 0 ? "+" : ""}{(active.stock.change_percent ?? 0).toFixed(2)}%
-            </span>
-          </div>
-        )}
+        {active.stock && (() => {
+          const holding = holdings.find(h => h.symbol === active.symbol);
+          const currentPrice = active.stock!.price;
+          const pnlPct  = holding ? ((currentPrice - holding.avg_cost) / holding.avg_cost) * 100 : null;
+          const pnlAbs  = holding ? (currentPrice - holding.avg_cost) * holding.shares : null;
+          const pnlPos  = pnlPct !== null && pnlPct >= 0;
+
+          return (
+            <>
+              {/* Your position — only shown if you hold shares */}
+              {holding && (
+                <div style={{
+                  marginTop: 8, padding: "7px 9px",
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: 8,
+                }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "rgba(232,234,240,0.45)",
+                    textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                    📦 Your position
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <span style={{ fontSize: 10, color: "rgba(232,234,240,0.55)", fontFamily: "monospace" }}>
+                        {holding.shares} shares · avg <span style={{ color: "rgba(232,234,240,0.75)" }}>${holding.avg_cost.toFixed(2)}</span>
+                      </span>
+                      <span style={{ fontSize: 10, color: "rgba(232,234,240,0.55)", fontFamily: "monospace" }}>
+                        Now <span style={{ color: "rgba(232,234,240,0.85)", fontWeight: 600 }}>${currentPrice.toFixed(2)}</span>
+                      </span>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace",
+                        color: pnlPos ? "#4ade80" : "#f87171" }}>
+                        {pnlPos ? "+" : ""}{pnlPct!.toFixed(2)}%
+                      </div>
+                      <div style={{ fontSize: 10, fontFamily: "monospace",
+                        color: pnlPos ? "rgba(74,222,128,0.7)" : "rgba(248,113,113,0.7)" }}>
+                        {pnlPos ? "+" : ""}${pnlAbs!.toFixed(2)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Trade button */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, paddingTop: 8, borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                <button
+                  onClick={() => handleTrade(active)}
+                  style={{
+                    padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                    background: style.accent + "20", border: `1px solid ${style.accent}50`, color: style.accent,
+                    transition: "all 0.15s",
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = style.accent + "35")}
+                  onMouseLeave={e => (e.currentTarget.style.background = style.accent + "20")}
+                >
+                  {holding ? (pnlPos ? "Take profit →" : "Cut loss →") : `Trade ${active.symbol} →`}
+                </button>
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: "rgba(232,234,240,0.5)" }}>
+                  ${currentPrice.toFixed(2)} · {(active.stock!.change_percent ?? 0) >= 0 ? "+" : ""}{(active.stock!.change_percent ?? 0).toFixed(2)}%
+                </span>
+              </div>
+            </>
+          );
+        })()}
 
         {/* Pagination dots */}
         {events.length > 1 && (

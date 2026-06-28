@@ -817,6 +817,7 @@ export default function DashboardPage() {
           {stocks.length > 0 && (
             <MarketEvents
               stocks={stocks}
+              holdings={holdings}
               onSelectStock={(stock) => {
                 setSelectedStock(stock);
                 setRightTab("trade");

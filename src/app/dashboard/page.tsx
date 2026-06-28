@@ -68,9 +68,11 @@ export default function DashboardPage() {
   const [participantSnapshots, setParticipantSnapshots] = useState<ParticipantSnapshot[]>([]);
   const [watchlistSymbols, setWatchlistSymbols] = useState<Set<string>>(new Set());
   const [activityFeed, setActivityFeed] = useState<Array<{
-    username: string; is_bot: boolean; symbol: string;
-    action: string; shares: number; price: number; executed_at: string;
+    username: string; is_bot: boolean; bot_strategy: string | null; symbol: string;
+    action: string; shares: number; price: number; executed_at: string; isNew?: boolean;
   }>>([]);
+  const [unreadActivity, setUnreadActivity] = useState(0);
+  const lastTradeTimeRef = useRef<string | null>(null);
   const [loading, setLoading]           = useState(true);
   const [refreshKey, setRefreshKey]     = useState(0);
   const [countdown, setCountdown]       = useState(60);
@@ -196,20 +198,23 @@ export default function DashboardPage() {
               .order("executed_at", { ascending: false })
               .limit(60);
 
-            const usernameMap: Record<string, { username: string; is_bot: boolean }> = {};
-            for (const snap of snapshots) usernameMap[snap.id] = { username: snap.username, is_bot: snap.is_bot };
+            const usernameMap: Record<string, { username: string; is_bot: boolean; bot_strategy: string | null }> = {};
+            for (const snap of snapshots) usernameMap[snap.id] = { username: snap.username, is_bot: snap.is_bot, bot_strategy: snap.bot_strategy };
 
-            setActivityFeed(
-              (feedTrades ?? []).map((t: any) => ({
-                username: usernameMap[t.participant_id]?.username ?? "Unknown",
-                is_bot:   usernameMap[t.participant_id]?.is_bot ?? false,
-                symbol:   t.symbol,
-                action:   t.action,
-                shares:   t.shares,
-                price:    t.price,
-                executed_at: t.executed_at,
-              }))
-            );
+            const feedRows = (feedTrades ?? []).map((t: any) => ({
+              username:     usernameMap[t.participant_id]?.username ?? "Unknown",
+              is_bot:       usernameMap[t.participant_id]?.is_bot ?? false,
+              bot_strategy: usernameMap[t.participant_id]?.bot_strategy ?? null,
+              symbol:       t.symbol,
+              action:       t.action,
+              shares:       t.shares,
+              price:        t.price,
+              executed_at:  t.executed_at,
+            }));
+            setActivityFeed(feedRows);
+            if (feedRows.length > 0) {
+              lastTradeTimeRef.current = feedRows[0].executed_at;
+            }
           }
         }
       }
@@ -231,6 +236,68 @@ export default function DashboardPage() {
       if (countdownRef.current) clearInterval(countdownRef.current);
     };
   }, [authReady, loadAll]);
+
+  // ── Real-time bot activity polling (every 20s) ───────────
+  useEffect(() => {
+    if (!participantId || !competition) return;
+    const pollNewTrades = async () => {
+      try {
+        const { data: compParticipants } = await supabase
+          .from("competition_participants")
+          .select("id, is_bot, bot_strategy, profiles(username)")
+          .eq("competition_id", competition.id);
+        if (!compParticipants?.length) return;
+
+        const partIds = compParticipants.map((p: any) => p.id);
+        let query = supabase
+          .from("trades")
+          .select("participant_id, symbol, action, shares, price, executed_at")
+          .in("participant_id", partIds)
+          .order("executed_at", { ascending: false })
+          .limit(10);
+
+        if (lastTradeTimeRef.current) {
+          query = query.gt("executed_at", lastTradeTimeRef.current);
+        }
+
+        const { data: newTrades } = await query;
+        if (!newTrades?.length) return;
+
+        const BOT_DISPLAY: Record<string, string> = { index:"The Indexer", momentum:"Surge", random:"Wildcard" };
+        const partMap: Record<string, { username: string; is_bot: boolean; bot_strategy: string | null }> = {};
+        for (const p of compParticipants as any[]) {
+          partMap[p.id] = {
+            username:     p.is_bot ? (BOT_DISPLAY[p.bot_strategy] ?? "Bot") : ((p.profiles as any)?.username ?? "Player"),
+            is_bot:       p.is_bot,
+            bot_strategy: p.bot_strategy,
+          };
+        }
+
+        const newRows = newTrades.map((t: any) => ({
+          username:     partMap[t.participant_id]?.username ?? "Unknown",
+          is_bot:       partMap[t.participant_id]?.is_bot ?? false,
+          bot_strategy: partMap[t.participant_id]?.bot_strategy ?? null,
+          symbol:       t.symbol,
+          action:       t.action,
+          shares:       t.shares,
+          price:        t.price,
+          executed_at:  t.executed_at,
+          isNew:        true,
+        }));
+
+        lastTradeTimeRef.current = newRows[0].executed_at;
+        setActivityFeed(prev => [...newRows, ...prev.slice(0, 58)]);
+
+        // Increment unread badge if not on activity tab
+        setUnreadActivity(prev => prev + newRows.filter(r => r.is_bot).length);
+      } catch (err) {
+        console.error("Activity poll error:", err);
+      }
+    };
+
+    const t = window.setInterval(pollNewTrades, 20_000);
+    return () => window.clearInterval(t);
+  }, [participantId, competition, supabase]);
 
   const handleTradeComplete = useCallback(() => {
     setRefreshKey(k => k + 1);
@@ -510,7 +577,7 @@ export default function DashboardPage() {
               ["competition", "COMP"],
               ["activity",    "⚡ ACTIVITY"],
             ] as [BottomTab, string][]).map(([key, label]) => (
-              <button key={key} onClick={() => setBottomTab(key)} style={{
+              <button key={key} onClick={() => { setBottomTab(key); if (key === "activity") setUnreadActivity(0); }} style={{
                 padding: "8px 10px",
                 fontSize: 10,
                 fontWeight: 700,
@@ -524,7 +591,16 @@ export default function DashboardPage() {
                 transition: "all 0.15s",
                 flexShrink: 0,
               }}>
-                {label}
+                <span style={{ position:"relative" }}>
+                  {label}
+                  {key === "activity" && unreadActivity > 0 && (
+                    <span style={{
+                      position:"absolute", top:-4, right:-10,
+                      background:"#f87171", color:"white", borderRadius:99,
+                      fontSize:8, fontWeight:800, padding:"1px 4px", lineHeight:1.4,
+                    }}>{unreadActivity}</span>
+                  )}
+                </span>
               </button>
             ))}
           </div>
@@ -650,54 +726,78 @@ export default function DashboardPage() {
               />
             )}
 
-            {bottomTab === "activity" && (
-              <div>
-                {activityFeed.length === 0 ? (
-                  <div style={{ padding:24, textAlign:"center", color:"rgba(232,234,240,0.55)", fontSize:12 }}>
-                    No trades yet — be the first to make a move!
-                  </div>
-                ) : activityFeed.map((t, i) => {
-                  const buy = t.action === "buy";
-                  return (
-                    <div key={i} style={{
-                      display:"flex", alignItems:"center", padding:"7px 14px",
-                      borderBottom:"1px solid rgba(255,255,255,0.04)", gap:10,
-                    }}>
-                      {/* Colour dot */}
-                      <div style={{ width:7, height:7, borderRadius:"50%", flexShrink:0,
-                        background: buy ? "#4ade80" : "#f87171" }} />
-                      {/* Who */}
-                      <span style={{
-                        fontSize:11, fontWeight:700, flexShrink:0,
-                        color: t.is_bot ? "#a78bfa" : "rgba(232,234,240,0.9)",
-                      }}>{t.username}</span>
-                      {/* Action */}
-                      <span style={{ fontSize:11, color: buy ? "#4ade80" : "#f87171", fontWeight:600, flexShrink:0 }}>
-                        {buy ? "bought" : "sold"}
-                      </span>
-                      {/* Detail */}
-                      <span style={{ fontSize:11, fontWeight:800, color:"rgba(232,234,240,0.85)", flexShrink:0 }}>
-                        {t.shares}× {t.symbol}
-                      </span>
-                      <span style={{ fontSize:10, color:"rgba(232,234,240,0.60)", fontFamily:"monospace", flexShrink:0 }}>
-                        @ ${t.price.toFixed(2)}
-                      </span>
-                      {/* Click to chart */}
-                      <button
-                        onClick={() => setSelectedStock(stocks.find(s => s.symbol === t.symbol) ?? null)}
-                        style={{ padding:"1px 6px", fontSize:9, borderRadius:4, cursor:"pointer",
-                          background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)",
-                          color:"rgba(232,234,240,0.60)", flexShrink:0 }}
-                      >Chart</button>
-                      {/* Time — pushed right */}
-                      <span style={{ marginLeft:"auto", fontSize:10, color:"rgba(232,234,240,0.50)", whiteSpace:"nowrap" }}>
-                        {timeAgo(t.executed_at)}
-                      </span>
+            {bottomTab === "activity" && (() => {
+              const BOT_META_FEED: Record<string, { color: string; emoji: string }> = {
+                index:    { color:"#60a5fa", emoji:"🏦" },
+                momentum: { color:"#f59e0b", emoji:"⚡" },
+                random:   { color:"#a78bfa", emoji:"🎲" },
+              };
+              const buyVerbs    = ["went long on", "just bought", "snapped up", "picked up"];
+              const sellVerbs   = ["dumped", "just sold", "offloaded", "exited"];
+              const rng = (arr: string[], seed: string) => arr[seed.charCodeAt(0) % arr.length];
+
+              return (
+                <div>
+                  {activityFeed.length === 0 ? (
+                    <div style={{ padding:24, textAlign:"center", color:"rgba(232,234,240,0.45)", fontSize:12 }}>
+                      No trades yet — be the first to make a move.
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  ) : activityFeed.map((t, i) => {
+                    const buy  = t.action === "buy";
+                    const bot  = t.is_bot && t.bot_strategy ? BOT_META_FEED[t.bot_strategy] : null;
+                    const nameColor = bot ? bot.color : "rgba(232,234,240,0.85)";
+                    const verb = buy ? rng(buyVerbs, t.symbol + i) : rng(sellVerbs, t.symbol + i);
+                    const total = (t.shares * t.price).toLocaleString("en-US", { maximumFractionDigits:0 });
+
+                    return (
+                      <div key={i} style={{
+                        padding:"8px 12px",
+                        borderBottom:"1px solid rgba(255,255,255,0.04)",
+                        background: t.isNew ? "rgba(125,211,176,0.04)" : "transparent",
+                        transition:"background 2s ease",
+                      }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:4 }}>
+                          {bot && <span style={{ fontSize:13 }}>{bot.emoji}</span>}
+                          <span style={{ fontSize:12, fontWeight:700, color:nameColor }}>{t.username}</span>
+                          <span style={{ fontSize:11, color: buy ? "#4ade80" : "#f87171", fontWeight:600 }}>{verb}</span>
+                          <span style={{ fontSize:12, fontWeight:800, fontFamily:"monospace", color:"rgba(232,234,240,0.9)" }}>
+                            {t.symbol}
+                          </span>
+                          {t.isNew && (
+                            <span style={{ fontSize:8, fontWeight:800, padding:"1px 5px", borderRadius:3,
+                              background:"rgba(125,211,176,0.15)", color:"#7dd3b0", letterSpacing:"0.06em",
+                              animation:"_pulse 1.5s ease-in-out 3" }}>NEW</span>
+                          )}
+                          <span style={{ marginLeft:"auto", fontSize:9, color:"rgba(232,234,240,0.4)", whiteSpace:"nowrap" }}>
+                            {timeAgo(t.executed_at)}
+                          </span>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:10, paddingLeft: bot ? 20 : 0 }}>
+                          <span style={{ fontSize:10, color:"rgba(232,234,240,0.5)", fontFamily:"monospace" }}>
+                            {t.shares} shares @ ${t.price.toFixed(2)}
+                          </span>
+                          <span style={{ fontSize:10, fontWeight:700, fontFamily:"monospace",
+                            color: buy ? "rgba(74,222,128,0.7)" : "rgba(248,113,113,0.7)" }}>
+                            ${total}
+                          </span>
+                          <button
+                            onClick={() => {
+                              const s = stocks.find(st => st.symbol === t.symbol);
+                              if (s) { setSelectedStock(s); setRightTab("trade"); }
+                            }}
+                            style={{ marginLeft:"auto", padding:"2px 8px", fontSize:9, borderRadius:5, cursor:"pointer",
+                              background:"rgba(125,211,176,0.07)", border:"1px solid rgba(125,211,176,0.2)", color:"#7dd3b0",
+                              fontWeight:700 }}>
+                            Trade →
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <style>{`@keyframes _pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+                </div>
+              );
+            })()}
 
           </div>{/* end scrollable content */}
           </div>{/* end left tabs column */}

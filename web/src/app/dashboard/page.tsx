@@ -25,8 +25,9 @@ import AutomationRules  from "@/components/AutomationRules";
 import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
 import StockPredict     from "@/components/StockPredict";
+import MarketEvents     from "@/components/MarketEvents";
 
-type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "news" | "sectors";
+type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation";
 
 interface ParticipantSnapshot {
@@ -71,7 +72,14 @@ export default function DashboardPage() {
   const [rightTab,  setRightTab]          = useState<RightTab>("trade");
   const [predictStock, setPredictStock]   = useState<{ symbol: string; price: number } | null>(null);
   const [copied, setCopied]               = useState(false);
-  const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [unreadActivity, setUnreadActivity] = useState(0);
+  const [activityFeed, setActivityFeed]     = useState<Array<{
+    username: string; is_bot: boolean; bot_strategy: string | null;
+    symbol: string; action: string; shares: number; price: number;
+    executed_at: string; isNew: boolean;
+  }>>([]);
+  const refreshRef      = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastTradeTimeRef = useRef<string | null>(null);
 
   const participant   = competitions[activeIdx] ?? null;
   const competition   = participant?.competition ?? null;
@@ -176,6 +184,68 @@ export default function DashboardPage() {
     return () => { if (refreshRef.current) clearInterval(refreshRef.current); };
   }, [authReady, loadAll]);
 
+  // ── Real-time bot activity polling (every 20s) ────────────
+  useEffect(() => {
+    if (!participantId || !competition) return;
+    const pollNewTrades = async () => {
+      try {
+        const { data: compParticipants } = await supabase
+          .from("competition_participants")
+          .select("id, is_bot, bot_strategy, profiles(username)")
+          .eq("competition_id", competition.id);
+        if (!compParticipants?.length) return;
+
+        const partIds = compParticipants.map((p: any) => p.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let query: any = supabase
+          .from("trades")
+          .select("participant_id, symbol, action, shares, price, executed_at")
+          .in("participant_id", partIds)
+          .order("executed_at", { ascending: false })
+          .limit(10);
+
+        if (lastTradeTimeRef.current) {
+          query = query.gt("executed_at", lastTradeTimeRef.current);
+        }
+
+        const { data: newTrades } = await query;
+        if (!newTrades?.length) return;
+
+        const BOT_DISPLAY: Record<string, string> = { index:"The Indexer", momentum:"Surge", random:"Wildcard" };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const partMap: Record<string, { username: string; is_bot: boolean; bot_strategy: string | null }> = {};
+        for (const p of compParticipants as any[]) {
+          partMap[p.id] = {
+            username:     p.is_bot ? (BOT_DISPLAY[p.bot_strategy] ?? "Bot") : ((p.profiles as any)?.username ?? "Player"),
+            is_bot:       p.is_bot,
+            bot_strategy: p.bot_strategy,
+          };
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const newRows = newTrades.map((t: any) => ({
+          username:     partMap[t.participant_id]?.username ?? "Unknown",
+          is_bot:       partMap[t.participant_id]?.is_bot ?? false,
+          bot_strategy: partMap[t.participant_id]?.bot_strategy ?? null,
+          symbol:       t.symbol,
+          action:       t.action,
+          shares:       t.shares,
+          price:        t.price,
+          executed_at:  t.executed_at,
+          isNew:        true,
+        }));
+
+        lastTradeTimeRef.current = newRows[0].executed_at;
+        setActivityFeed(prev => [...newRows, ...prev.slice(0, 58)]);
+        // Only badge-increment for bot trades (player's own trades are obvious)
+        setUnreadActivity(prev => bottomTab === "activity" ? 0 : prev + newRows.filter((r: any) => r.is_bot).length);
+      } catch { /* silent */ }
+    };
+
+    const t = window.setInterval(pollNewTrades, 20_000);
+    return () => window.clearInterval(t);
+  }, [participantId, competition, supabase, bottomTab]);
+
   const handleTradeComplete = useCallback(() => {
     setRefreshKey(k => k + 1);
     setTimeout(loadAll, 500);
@@ -239,6 +309,15 @@ export default function DashboardPage() {
   }
 
   const spy = stocks.find(s => s.symbol === "SPY");
+
+  function timeAgo(iso: string) {
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }
 
   // ── Shared button styles ──────────────────────────────────
   const tabBtn = (active: boolean): React.CSSProperties => ({
@@ -387,11 +466,22 @@ export default function DashboardPage() {
               ["watchlist",   "★ WATCHLIST"],
               ["alerts",      "🔔 ALERTS"],
               ["competition", "COMPETITION"],
+              ["activity",    "⚡ ACTIVITY"],
               ["news",        "📰 NEWS"],
               ["sectors",     "SECTORS"],
             ] as [BottomTab, string][]).map(([key, label]) => (
-              <button key={key} onClick={() => setBottomTab(key)} style={tabBtn(bottomTab === key)}>
+              <button key={key} onClick={() => { setBottomTab(key); if (key === "activity") setUnreadActivity(0); }}
+                style={{ ...tabBtn(bottomTab === key), position:"relative" }}>
                 {label}
+                {key === "activity" && unreadActivity > 0 && (
+                  <span style={{
+                    position:"absolute", top:5, right:4,
+                    background:"#f87171", color:"white",
+                    fontSize:8, fontWeight:800, borderRadius:99,
+                    padding:"1px 4px", lineHeight:"14px",
+                    minWidth:14, textAlign:"center",
+                  }}>{unreadActivity}</span>
+                )}
               </button>
             ))}
           </div>
@@ -451,6 +541,69 @@ export default function DashboardPage() {
                 onBotsChanged={loadAll}
               />
             )}
+
+            {bottomTab === "activity" && (() => {
+              const BOT_META_FEED: Record<string, { color: string; emoji: string }> = {
+                index:    { color:"#60a5fa", emoji:"🏦" },
+                momentum: { color:"#f59e0b", emoji:"⚡" },
+                random:   { color:"#a78bfa", emoji:"🎲" },
+              };
+              const buyVerbs  = ["went long on", "just bought", "snapped up", "picked up"];
+              const sellVerbs = ["dumped", "just sold", "offloaded", "exited"];
+              const rng = (arr: string[], seed: string) => arr[seed.charCodeAt(0) % arr.length];
+              return (
+                <div>
+                  {activityFeed.length === 0 ? (
+                    <div style={{ padding:24, textAlign:"center", color:"rgba(232,234,240,0.45)", fontSize:12 }}>
+                      No trades yet — be the first to make a move.
+                    </div>
+                  ) : activityFeed.map((t, i) => {
+                    const buy  = t.action === "buy";
+                    const bot  = t.is_bot && t.bot_strategy ? BOT_META_FEED[t.bot_strategy] : null;
+                    const nameColor = bot ? bot.color : "rgba(232,234,240,0.85)";
+                    const verb = buy ? rng(buyVerbs, t.symbol + i) : rng(sellVerbs, t.symbol + i);
+                    const total = (t.shares * t.price).toLocaleString("en-US", { maximumFractionDigits:0 });
+                    return (
+                      <div key={i} style={{
+                        padding:"8px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)",
+                        background: t.isNew ? "rgba(125,211,176,0.04)" : "transparent",
+                        transition:"background 2s ease",
+                      }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:4 }}>
+                          {bot && <span style={{ fontSize:13 }}>{bot.emoji}</span>}
+                          <span style={{ fontSize:12, fontWeight:700, color:nameColor }}>{t.username}</span>
+                          <span style={{ fontSize:11, color: buy ? "#4ade80" : "#f87171", fontWeight:600 }}>{verb}</span>
+                          <span style={{ fontSize:12, fontWeight:800, fontFamily:"monospace", color:"rgba(232,234,240,0.9)" }}>{t.symbol}</span>
+                          {t.isNew && (
+                            <span style={{ fontSize:8, fontWeight:800, padding:"1px 5px", borderRadius:3,
+                              background:"rgba(125,211,176,0.15)", color:"#7dd3b0", letterSpacing:"0.06em" }}>NEW</span>
+                          )}
+                          <span style={{ marginLeft:"auto", fontSize:9, color:"rgba(232,234,240,0.4)", whiteSpace:"nowrap" }}>
+                            {timeAgo(t.executed_at)}
+                          </span>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:10, paddingLeft: bot ? 20 : 0 }}>
+                          <span style={{ fontSize:10, color:"rgba(232,234,240,0.5)", fontFamily:"monospace" }}>
+                            {t.shares} shares @ ${t.price.toFixed(2)}
+                          </span>
+                          <span style={{ fontSize:10, fontWeight:700, fontFamily:"monospace",
+                            color: buy ? "rgba(74,222,128,0.7)" : "rgba(248,113,113,0.7)" }}>
+                            ${total}
+                          </span>
+                          <button
+                            onClick={() => { const s = stocks.find(st => st.symbol === t.symbol); if (s) { setSelectedStock(s); setRightTab("trade"); } }}
+                            style={{ marginLeft:"auto", padding:"2px 8px", fontSize:9, borderRadius:5, cursor:"pointer",
+                              background:"rgba(125,211,176,0.07)", border:"1px solid rgba(125,211,176,0.2)", color:"#7dd3b0", fontWeight:700 }}>
+                            Trade →
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <style>{`@keyframes _pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
+                </div>
+              );
+            })()}
 
             {bottomTab === "news" && (
               <NewsPanel

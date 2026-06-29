@@ -14,7 +14,7 @@ import TickerBar        from "@/components/TickerBar";
 import Portfolio        from "@/components/Portfolio";
 import StockList        from "@/components/StockList";
 import TradePanel       from "@/components/TradePanel";
-import TradingChart     from "@/components/TradingChart";
+import TrendChart       from "@/components/TrendChart";
 import TradeHistory     from "@/components/TradeHistory";
 import Leaderboard      from "@/components/Leaderboard";
 import NewsPanel        from "@/components/NewsPanel";
@@ -349,7 +349,7 @@ export default function DashboardPage() {
             )}
 
             {selectedStock ? (
-              <TradingChart
+              <TrendChart
                 key={selectedStock.symbol}
                 symbol={selectedStock.symbol}
                 companyName={selectedStock.company_name ?? selectedStock.symbol}
@@ -358,7 +358,7 @@ export default function DashboardPage() {
                 onBack={() => setSelectedStock(null)}
               />
             ) : spy ? (
-              <TradingChart
+              <TrendChart
                 key="overview-spy"
                 symbol="SPY"
                 companyName="SPDR S&P 500 ETF"
@@ -457,7 +457,7 @@ export default function DashboardPage() {
 
         {/* ══ NEWS PANEL ══ */}
         <div style={{
-          width: 300,
+          width: 210,
           borderLeft: "1px solid rgba(255,255,255,0.06)",
           display: "flex",
           flexDirection: "column",

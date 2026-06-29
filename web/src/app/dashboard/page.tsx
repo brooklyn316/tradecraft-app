@@ -397,10 +397,17 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        <button onClick={handleSignOut}
-          style={{ fontSize:11, color:"rgba(232,234,240,0.4)", background:"none", border:"none", cursor:"pointer", flexShrink:0 }}>
-          Sign out
-        </button>
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+          <button onClick={() => window.location.href = "/stats"}
+            style={{ fontSize:11, fontWeight:600, color:"rgba(232,234,240,0.55)", background:"rgba(255,255,255,0.04)",
+              border:"1px solid rgba(255,255,255,0.08)", borderRadius:8, padding:"5px 11px", cursor:"pointer" }}>
+            📊 Stats
+          </button>
+          <button onClick={handleSignOut}
+            style={{ fontSize:11, color:"rgba(232,234,240,0.4)", background:"none", border:"none", cursor:"pointer" }}>
+            Sign out
+          </button>
+        </div>
       </header>
 
       {/* ── Ticker bar ── */}

@@ -136,7 +136,7 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
           Duration
         </label>
         <div className="grid grid-cols-3 gap-2">
-          {(["week", "month", "year"] as CompetitionDuration[]).map((d) => (
+          {(["1d", "3d", "1w"] as CompetitionDuration[]).map((d) => (
             <button
               key={d}
               onClick={() => setDuration(d)}

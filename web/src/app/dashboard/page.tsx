@@ -21,12 +21,13 @@ import NewsPanel        from "@/components/NewsPanel";
 import AIAdvisor        from "@/components/AIAdvisor";
 import Watchlist        from "@/components/Watchlist";
 import LimitOrders      from "@/components/LimitOrders";
+import AutomationRules  from "@/components/AutomationRules";
 import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
 import StockPredict     from "@/components/StockPredict";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition";
-type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders";
+type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation";
 type NewsTab   = "news" | "sectors";
 
 interface ParticipantSnapshot {
@@ -555,7 +556,8 @@ export default function DashboardPage() {
               ["portfolio", "Portfolio"],
               ["history",   "History"],
               ["ai",        "✦ AI"],
-              ["orders",    "Orders"],
+              ["orders",     "Orders"],
+              ["automation", "⚡ Auto"],
             ] as [RightTab, string][]).map(([key, label]) => (
               <button key={key} onClick={() => setRightTab(key)} style={{
                 flex: 1,
@@ -627,6 +629,16 @@ export default function DashboardPage() {
                 participantId={participantId}
                 refreshKey={refreshKey}
                 onOrderFilled={loadAll}
+              />
+            )}
+
+            {rightTab === "automation" && participantId && competition && participant && (
+              <AutomationRules
+                participantId={participantId}
+                competitionId={competition.id}
+                stocks={stocks}
+                cashBalance={participant.cash_balance}
+                refreshKey={refreshKey}
               />
             )}
 

@@ -189,6 +189,118 @@ async function processLimitOrders(db: DB, prices: StockPrice[]) {
   return filled;
 }
 
+// ── Process player automation rules ─────────────────────────────────────────
+interface PlayerRule {
+  id: string;
+  participant_id: string;
+  competition_id: string;
+  condition_type: string;
+  symbol: string | null;
+  condition_value: number;
+  action: string;
+  action_symbol: string | null;
+  shares: number | null;
+  repeat: boolean;
+}
+
+async function processPlayerRules(db: DB, compId: string, prices: StockPrice[]): Promise<number> {
+  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]));
+
+  const { data: rules } = await db
+    .from("player_rules")
+    .select("*")
+    .eq("competition_id", compId)
+    .eq("status", "active");
+
+  if (!rules?.length) return 0;
+  let fired = 0;
+
+  for (const rule of rules as PlayerRule[]) {
+    try {
+      // Fetch participant state
+      const { data: participant } = await db
+        .from("competition_participants")
+        .select("id, cash_balance")
+        .eq("id", rule.participant_id)
+        .single();
+      if (!participant) continue;
+
+      // Evaluate condition
+      let conditionMet = false;
+
+      if (rule.condition_type === "price_below" || rule.condition_type === "price_above") {
+        const sp = rule.symbol ? priceMap[rule.symbol] : null;
+        if (!sp) continue;
+        conditionMet = rule.condition_type === "price_below"
+          ? sp.price <= rule.condition_value
+          : sp.price >= rule.condition_value;
+
+      } else if (rule.condition_type === "day_change_pct_below" || rule.condition_type === "day_change_pct_above") {
+        const sp = rule.symbol ? priceMap[rule.symbol] : null;
+        if (!sp) continue;
+        const pct = sp.change_percent ?? 0;
+        conditionMet = rule.condition_type === "day_change_pct_below"
+          ? pct <= rule.condition_value
+          : pct >= rule.condition_value;
+
+      } else if (rule.condition_type === "portfolio_value_below" || rule.condition_type === "portfolio_value_above") {
+        const { data: holdings } = await db
+          .from("holdings")
+          .select("symbol, shares")
+          .eq("participant_id", rule.participant_id);
+        const holdingsValue = (holdings ?? []).reduce((s, h) => {
+          const sp = priceMap[h.symbol];
+          return s + h.shares * (sp?.price ?? 0);
+        }, 0);
+        const totalValue = participant.cash_balance + holdingsValue;
+        conditionMet = rule.condition_type === "portfolio_value_below"
+          ? totalValue <= rule.condition_value
+          : totalValue >= rule.condition_value;
+      }
+
+      if (!conditionMet) continue;
+
+      // Execute action
+      const sym = rule.action_symbol;
+      if (!sym) continue;
+      const sp = priceMap[sym];
+      if (!sp || sp.price <= 0) continue;
+
+      const { data: holding } = await db
+        .from("holdings")
+        .select("shares, avg_cost")
+        .eq("participant_id", rule.participant_id)
+        .eq("symbol", sym)
+        .single();
+
+      const currentShares = holding?.shares ?? 0;
+
+      if (rule.action === "buy_shares" && rule.shares && rule.shares > 0) {
+        await executeBotTrade(db, rule.participant_id, sym, sp.company_name ?? sym, "buy", rule.shares, sp.price, participant.cash_balance, currentShares);
+      } else if (rule.action === "sell_shares" && rule.shares && rule.shares > 0 && currentShares >= rule.shares) {
+        await executeBotTrade(db, rule.participant_id, sym, sp.company_name ?? sym, "sell", rule.shares, sp.price, participant.cash_balance, currentShares);
+      } else if (rule.action === "sell_all" && currentShares > 0) {
+        await executeBotTrade(db, rule.participant_id, sym, sp.company_name ?? sym, "sell", currentShares, sp.price, participant.cash_balance, currentShares);
+      } else {
+        continue;
+      }
+
+      // Update rule status
+      await db.from("player_rules").update({
+        triggered_at: new Date().toISOString(),
+        trigger_count: (rule as any).trigger_count + 1,
+        status: rule.repeat ? "active" : "triggered",
+      }).eq("id", rule.id);
+
+      fired++;
+    } catch (err) {
+      console.error(`Player rule ${rule.id} error:`, err);
+    }
+  }
+
+  return fired;
+}
+
 // ── End expired competitions ─────────────────────────────────────────────────
 async function endExpiredCompetitions(db: DB): Promise<number> {
   const today = new Date().toISOString().split("T")[0];
@@ -237,11 +349,16 @@ export async function GET(req: NextRequest) {
 
   let tradesExecuted = 0;
   let ordersFilledTotal = 0;
+  let playerRulesFired = 0;
 
   for (const comp of competitions) {
     // Process limit orders
     const ordersFilled = await processLimitOrders(db, stockPrices);
     ordersFilledTotal += ordersFilled;
+
+    // Process player automation rules
+    const rulesFired = await processPlayerRules(db, comp.id, stockPrices);
+    playerRulesFired += rulesFired;
 
     // Run bots
     const { data: bots } = await db
@@ -271,5 +388,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, ended, competitions: competitions.length });
+  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, ended, competitions: competitions.length });
 }

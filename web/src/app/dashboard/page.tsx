@@ -14,7 +14,7 @@ import TickerBar        from "@/components/TickerBar";
 import Portfolio        from "@/components/Portfolio";
 import StockList        from "@/components/StockList";
 import TradePanel       from "@/components/TradePanel";
-import TrendChart       from "@/components/TrendChart";
+import TradingChart     from "@/components/TradingChart";
 import TradeHistory     from "@/components/TradeHistory";
 import Leaderboard      from "@/components/Leaderboard";
 import NewsPanel        from "@/components/NewsPanel";
@@ -26,9 +26,8 @@ import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
 import StockPredict     from "@/components/StockPredict";
 
-type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition";
+type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "news" | "sectors";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation";
-type NewsTab   = "news" | "sectors";
 
 interface ParticipantSnapshot {
   id: string;
@@ -70,7 +69,6 @@ export default function DashboardPage() {
   const [selectedStock, setSelectedStock] = useState<StockPrice | null>(null);
   const [bottomTab, setBottomTab]         = useState<BottomTab>("competition");
   const [rightTab,  setRightTab]          = useState<RightTab>("trade");
-  const [newsTab,   setNewsTab]           = useState<NewsTab>("news");
   const [predictStock, setPredictStock]   = useState<{ symbol: string; price: number } | null>(null);
   const [copied, setCopied]               = useState(false);
   const refreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -349,7 +347,7 @@ export default function DashboardPage() {
             )}
 
             {selectedStock ? (
-              <TrendChart
+              <TradingChart
                 key={selectedStock.symbol}
                 symbol={selectedStock.symbol}
                 companyName={selectedStock.company_name ?? selectedStock.symbol}
@@ -358,7 +356,7 @@ export default function DashboardPage() {
                 onBack={() => setSelectedStock(null)}
               />
             ) : spy ? (
-              <TrendChart
+              <TradingChart
                 key="overview-spy"
                 symbol="SPY"
                 companyName="SPDR S&P 500 ETF"
@@ -389,6 +387,8 @@ export default function DashboardPage() {
               ["watchlist",   "★ WATCHLIST"],
               ["alerts",      "🔔 ALERTS"],
               ["competition", "COMPETITION"],
+              ["news",        "📰 NEWS"],
+              ["sectors",     "SECTORS"],
             ] as [BottomTab, string][]).map(([key, label]) => (
               <button key={key} onClick={() => setBottomTab(key)} style={tabBtn(bottomTab === key)}>
                 {label}
@@ -452,69 +452,31 @@ export default function DashboardPage() {
               />
             )}
 
-          </div>
-        </main>
-
-        {/* ══ NEWS PANEL ══ */}
-        <div style={{
-          width: 210,
-          borderLeft: "1px solid rgba(255,255,255,0.06)",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          flexShrink: 0,
-        }}>
-          {/* NEWS | SECTORS tabs */}
-          <div style={{
-            display: "flex",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            flexShrink: 0,
-            background: "rgba(255,255,255,0.01)",
-          }}>
-            {([["news","📰 NEWS"],["sectors","SECTORS"]] as [NewsTab, string][]).map(([key, label]) => (
-              <button key={key} onClick={() => setNewsTab(key)} style={{
-                flex: 1,
-                padding: "10px 8px",
-                fontSize: 10,
-                fontWeight: 700,
-                cursor: "pointer",
-                border: "none",
-                background: "transparent",
-                letterSpacing: "0.06em",
-                color: newsTab === key ? "#7dd3b0" : "rgba(232,234,240,0.45)",
-                borderBottom: newsTab === key ? "2px solid #7dd3b0" : "2px solid transparent",
-                transition: "all 0.15s",
-              }}>{label}</button>
-            ))}
-          </div>
-
-          <div style={{ flex:1, overflowY:"auto" }}>
-            {newsTab === "news" ? (
+            {bottomTab === "news" && (
               <NewsPanel
                 symbol={selectedStock?.symbol ?? "SPY"}
                 companyName={selectedStock?.company_name ?? selectedStock?.symbol ?? "S&P 500"}
               />
-            ) : (
-              /* Sectors: show broad ETF proxies from loaded stocks */
+            )}
+
+            {bottomTab === "sectors" && (
               <div style={{ padding:"8px 0" }}>
                 {[
-                  { label:"Technology",   sym:"QQQ" },
-                  { label:"S&P 500",      sym:"SPY" },
-                  { label:"Financials",   sym:"BAC" },
-                  { label:"Healthcare",   sym:"UNH" },
-                  { label:"Consumer",     sym:"AMZN" },
-                  { label:"Energy",       sym:"XOM" },
-                  { label:"Industrials",  sym:"BA" },
-                  { label:"Real Estate",  sym:"COST" },
+                  { label:"Technology",  sym:"QQQ"  },
+                  { label:"S&P 500",     sym:"SPY"  },
+                  { label:"Financials",  sym:"BAC"  },
+                  { label:"Healthcare",  sym:"UNH"  },
+                  { label:"Consumer",    sym:"AMZN" },
+                  { label:"Energy",      sym:"XOM"  },
+                  { label:"Industrials", sym:"BA"   },
+                  { label:"Real Estate", sym:"COST" },
                 ].map(({ label, sym }) => {
                   const s = stocks.find(x => x.symbol === sym);
                   if (!s) return null;
                   const up = (s.change_percent ?? 0) >= 0;
                   return (
-                    <div key={sym}
-                      onClick={() => setSelectedStock(s)}
-                      style={{ display:"flex", alignItems:"center", padding:"8px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer", gap:8 }}
-                    >
+                    <div key={sym} onClick={() => setSelectedStock(s)}
+                      style={{ display:"flex", alignItems:"center", padding:"8px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer", gap:8 }}>
                       <div style={{ flex:1 }}>
                         <div style={{ fontSize:11, fontWeight:700, color:"rgba(232,234,240,0.85)" }}>{label}</div>
                         <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>{sym}</div>
@@ -530,8 +492,9 @@ export default function DashboardPage() {
                 })}
               </div>
             )}
+
           </div>
-        </div>
+        </main>
 
         {/* ══ RIGHT PANEL: Trade / Portfolio / History / AI / Orders ══ */}
         <aside style={{

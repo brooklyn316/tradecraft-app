@@ -328,6 +328,7 @@ export default function DashboardPage() {
     border: "none",
     background: "transparent",
     whiteSpace: "nowrap",
+    flexShrink: 0,
     letterSpacing: "0.04em",
     color: active ? "#7dd3b0" : "rgba(232,234,240,0.45)",
     borderBottom: active ? "2px solid #7dd3b0" : "2px solid transparent",
@@ -466,6 +467,8 @@ export default function DashboardPage() {
             background: "rgba(255,255,255,0.01)",
             overflowX: "auto",
             scrollbarWidth: "none",
+            WebkitOverflowScrolling: "touch",
+            msOverflowStyle: "none",
           }}>
             {([
               ["markets",     "LIVE MARKETS"],
@@ -494,7 +497,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Bottom content panel */}
-          <div style={{ height: 220, overflowY: "auto", flexShrink: 0 }}>
+          <div style={{ height: 300, overflowY: "auto", flexShrink: 0 }}>
 
             {bottomTab === "markets" && (
               <StockList

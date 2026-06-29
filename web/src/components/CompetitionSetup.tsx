@@ -10,20 +10,20 @@ interface CompetitionSetupProps {
 }
 
 const DURATION_LABELS: Record<CompetitionDuration, string> = {
-  week: "1 Week",
-  month: "1 Month",
-  year: "1 Year",
+  "1d": "1 Day",
+  "3d": "3 Days",
+  "1w": "1 Week",
 };
 
 const DURATION_DAYS: Record<CompetitionDuration, number> = {
-  week: 7,
-  month: 30,
-  year: 365,
+  "1d": 1,
+  "3d": 3,
+  "1w": 7,
 };
 
 export default function CompetitionSetup({ userId, onCreated }: CompetitionSetupProps) {
   const [mode, setMode] = useState<CompetitionMode>("solo");
-  const [duration, setDuration] = useState<CompetitionDuration>("month");
+  const [duration, setDuration] = useState<CompetitionDuration>("1d");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

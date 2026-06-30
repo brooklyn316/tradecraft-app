@@ -58,9 +58,10 @@ const BOTS = [
 ];
 
 export default function CompetitionSetup({ userId, onCreated }: CompetitionSetupProps) {
-  const [mode, setMode]         = useState<CompetitionMode>("bot");
-  const [style, setStyle]       = useState<CompetitionStyle>("standard");
-  const [duration, setDuration] = useState<CompetitionDuration>("1w");
+  const [mode, setMode]           = useState<CompetitionMode>("bot");
+  const [style, setStyle]         = useState<CompetitionStyle>("standard");
+  const [duration, setDuration]   = useState<CompetitionDuration>("1w");
+  const [roundDuration, setRoundDuration] = useState("1h");
   const [name, setName]         = useState("");
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
@@ -116,6 +117,15 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
       });
     }
 
+    // Bracket: immediately seed round 1
+    if (style === "bracket") {
+      await fetch("/api/bracket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "start", competitionId: comp.id, roundDuration }),
+      });
+    }
+
     onCreated(comp.id);
     setLoading(false);
   }
@@ -149,11 +159,12 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
         <label className="block text-[10px] font-semibold text-[rgba(232,234,240,0.55)] uppercase tracking-widest mb-2">
           Trading Style
         </label>
-        <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-2 mb-3">
           {([
             { id: "standard",  label: "Standard",   icon: "📊", desc: "No restrictions. Hold as long as you want." },
             { id: "day_trade", label: "Day Trade",  icon: "⚡", desc: "Must close all positions by 4pm ET daily. Forces tight P&L discipline." },
             { id: "swing",     label: "Swing",      icon: "📈", desc: "Multi-day holds. Positions labelled by how long you've held." },
+            { id: "bracket",   label: "Bracket",    icon: "🏆", desc: "Head-to-head elimination rounds. Best return advances." },
           ] as { id: CompetitionStyle; label: string; icon: string; desc: string }[]).map((s) => (
             <button
               key={s.id}
@@ -178,6 +189,23 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
         {style === "swing" && (
           <div className="rounded-xl border border-[rgba(96,165,250,0.2)] bg-[rgba(96,165,250,0.05)] p-3 text-[11px] text-[rgba(232,234,240,0.6)] leading-relaxed">
             📈 <strong className="text-[#60a5fa]">Swing rules:</strong> Hold positions across multiple days. Each holding shows how long you've owned it. Reward patience.
+          </div>
+        )}
+        {style === "bracket" && (
+          <div className="rounded-xl border border-[rgba(251,191,36,0.2)] bg-[rgba(251,191,36,0.05)] p-3 text-[11px] text-[rgba(232,234,240,0.6)] leading-relaxed">
+            <p className="mb-2">🏆 <strong className="text-[#fbbf24]">Bracket rules:</strong> You vs 3 bots in a 2-round knockout. Each round is a clean slate — cash resets, no holdings carry over. Highest % return advances.</p>
+            <div className="flex gap-2 mt-2">
+              {[["15min","15 min"],["1h","1 hour"],["4h","4 hours"],["1d","1 day"]].map(([k,l]) => (
+                <button key={k} onClick={() => setRoundDuration(k)}
+                  className="flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all"
+                  style={{
+                    background: roundDuration === k ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.03)",
+                    borderColor: roundDuration === k ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.08)",
+                    color: roundDuration === k ? "#fbbf24" : "rgba(232,234,240,0.45)",
+                  }}>{l}</button>
+              ))}
+            </div>
+            <p className="text-[9px] mt-2 text-[rgba(232,234,240,0.35)]">Time per round · 2 rounds total (Semifinal + Final)</p>
           </div>
         )}
       </div>
@@ -254,8 +282,8 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
         )}
       </div>
 
-      {/* Duration — hidden for day_trade (always 1d) */}
-      <div style={{ display: style === "day_trade" ? "none" : undefined }}>
+      {/* Duration — hidden for day_trade and bracket */}
+      <div style={{ display: (style === "day_trade" || style === "bracket") ? "none" : undefined }}>
         <label className="block text-[10px] font-semibold text-[rgba(232,234,240,0.55)] uppercase tracking-widest mb-2">
           Duration
         </label>

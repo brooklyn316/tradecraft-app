@@ -30,6 +30,7 @@ import MarketSignals    from "@/components/MarketSignals";
 import IPOPanel        from "@/components/IPOPanel";
 import DayTradingHUD    from "@/components/DayTradingHUD";
 import PredictionBets  from "@/components/PredictionBets";
+import BracketView     from "@/components/BracketView";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict";
@@ -411,7 +412,8 @@ export default function DashboardPage() {
             }}>
               {c.competition?.name ?? "Competition"}
               {c.competition?.style === "day_trade" && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>⚡</span>}
-              {c.competition?.style === "swing" && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>📈</span>}
+              {c.competition?.style === "swing"     && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>📈</span>}
+              {c.competition?.style === "bracket"   && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>🏆</span>}
             </button>
           ))}
         </div>
@@ -571,7 +573,16 @@ export default function DashboardPage() {
               />
             )}
 
-            {bottomTab === "competition" && competition && (
+            {bottomTab === "competition" && competition && competition.style === "bracket" && (
+              <BracketView
+                competitionId={competition.id}
+                currentUserId={userId}
+                startingCash={competition.starting_cash}
+                stocks={stocks}
+              />
+            )}
+
+            {bottomTab === "competition" && competition && competition.style !== "bracket" && (
               <Leaderboard
                 entries={leaderboard}
                 currentUserId={userId}

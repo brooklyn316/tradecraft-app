@@ -12,7 +12,7 @@ export type Profile = {
 
 export type CompetitionMode     = "solo" | "friends" | "bot";
 export type CompetitionDuration = "1d" | "3d" | "1w";
-export type CompetitionStyle    = "standard" | "day_trade" | "swing";
+export type CompetitionStyle    = "standard" | "day_trade" | "swing" | "bracket";
 export type CompetitionStatus = "active" | "completed" | "cancelled";
 
 export type Competition = {

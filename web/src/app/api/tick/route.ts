@@ -375,6 +375,31 @@ async function processMargin(db: DB, compId: string, prices: StockPrice[]): Prom
   return { interest: interestCharged, calls: marginCalls };
 }
 
+// ── Advance bracket rounds ───────────────────────────────────────────────────
+async function processBrackets(db: DB): Promise<number> {
+  // Find active bracket rounds that have passed their end_at
+  const { data: dueRounds } = await db
+    .from("bracket_rounds")
+    .select("id, competition_id")
+    .eq("status", "active")
+    .lte("end_at", new Date().toISOString());
+
+  if (!dueRounds?.length) return 0;
+  let advanced = 0;
+
+  for (const round of dueRounds) {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/bracket`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "advance", competitionId: round.competition_id, roundId: round.id }),
+      });
+      if (res.ok) advanced++;
+    } catch { /* continue */ }
+  }
+  return advanced;
+}
+
 // ── Resolve prediction bets ──────────────────────────────────────────────────
 const BET_WIN_MULTIPLIER  = 1.85;
 const BET_PUSH_THRESHOLD  = 0.001; // <0.1% move = push
@@ -590,6 +615,9 @@ export async function GET(req: NextRequest) {
   // Process IPOs (global — not per competition)
   const iposListed = await processIPOs(db);
 
+  // Advance bracket rounds
+  const bracketsAdvanced = await processBrackets(db);
+
   // Resolve prediction bets
   const { wins: betWins, losses: betLosses, pushes: betPushes } = await processPredictionBets(db, stockPrices);
 
@@ -644,5 +672,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, ended, competitions: competitions.length });
+  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, bracketsAdvanced, ended, competitions: competitions.length });
 }

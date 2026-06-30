@@ -28,9 +28,20 @@ function formatRelativeTime(iso: string) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+const SHARE_BASE = "https://tradecraft.voxlabs.dev/share/trade";
+
 export default function TradeHistory({ participantId, refreshKey }: TradeHistoryProps) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  function handleShare(tradeId: string) {
+    const url = `${SHARE_BASE}/${tradeId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedId(tradeId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -135,6 +146,27 @@ export default function TradeHistory({ participantId, refreshKey }: TradeHistory
                     </span>
                   </div>
                 </div>
+
+                {/* Share button */}
+                {trade.id && (
+                  <button
+                    onClick={() => handleShare(trade.id!)}
+                    title="Copy share link"
+                    style={{
+                      flexShrink: 0,
+                      padding: "4px 7px",
+                      fontSize: 10,
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      border: `1px solid ${copiedId === trade.id ? "rgba(125,211,176,0.35)" : "rgba(255,255,255,0.08)"}`,
+                      background: copiedId === trade.id ? "rgba(125,211,176,0.1)" : "rgba(255,255,255,0.03)",
+                      color: copiedId === trade.id ? "#7dd3b0" : "rgba(232,234,240,0.4)",
+                      transition: "all 0.15s",
+                    }}
+                  >
+                    {copiedId === trade.id ? "✓" : "🔗"}
+                  </button>
+                )}
               </div>
             );
           })

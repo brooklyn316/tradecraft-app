@@ -36,9 +36,10 @@ import DailyChallenge  from "@/components/DailyChallenge";
 import StreakBadges       from "@/components/StreakBadges";
 import GlobalLeaderboard  from "@/components/GlobalLeaderboard";
 import SectorRotation     from "@/components/SectorRotation";
+import MarketWealth       from "@/components/MarketWealth";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo" | "challenge" | "global";
-type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options";
+type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options" | "wealth";
 
 interface ParticipantSnapshot {
   id: string;
@@ -76,6 +77,7 @@ export default function DashboardPage() {
   const [participantSnapshots, setParticipantSnapshots] = useState<ParticipantSnapshot[]>([]);
   const [loading, setLoading]           = useState(true);
   const [refreshKey, setRefreshKey]     = useState(0);
+  const [mwBalance, setMwBalance]       = useState<number | null>(null);
 
   // ── UI ────────────────────────────────────────────────────
   const [selectedStock, setSelectedStock] = useState<StockPrice | null>(null);
@@ -130,10 +132,12 @@ export default function DashboardPage() {
   const loadAll = useCallback(async () => {
     if (!userId) return;
     try {
-      const [comps, allStocks] = await Promise.all([
+      const [comps, allStocks, mwRes] = await Promise.all([
         getUserCompetitions(userId),
         getAllStockPrices(),
+        fetch(`/api/market-wealth?userId=${userId}`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
+      if (mwRes) setMwBalance(mwRes.balance ?? 0);
       setStocks(allStocks);
 
       const active = (comps as any[]).filter(c => c.competition?.status === "active");
@@ -424,6 +428,19 @@ export default function DashboardPage() {
         </div>
 
         <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+          {mwBalance !== null && (
+            <button
+              onClick={() => setRightTab("wealth")}
+              style={{
+                fontSize:11, fontWeight:700, fontFamily:"monospace",
+                color:"#fbbf24", background:"rgba(251,191,36,0.08)",
+                border:"1px solid rgba(251,191,36,0.2)", borderRadius:8,
+                padding:"5px 10px", cursor:"pointer", flexShrink:0,
+              }}
+            >
+              💎 {mwBalance.toLocaleString()}
+            </button>
+          )}
           <button onClick={() => window.location.href = "/stats"}
             style={{ fontSize:11, fontWeight:600, color:"rgba(232,234,240,0.55)", background:"rgba(255,255,255,0.04)",
               border:"1px solid rgba(255,255,255,0.08)", borderRadius:8, padding:"5px 11px", cursor:"pointer" }}>
@@ -739,6 +756,7 @@ export default function DashboardPage() {
               ["predict",   "🎯 Predict"],
               ["ai",        "✦ AI"],
               ["options",    "⚙ Options"],
+              ["wealth",     "💎 Wealth"],
               ["orders",     "Orders"],
               ["automation", "⚡ Auto"],
             ] as [RightTab, string][]).map(([key, label]) => (
@@ -841,6 +859,10 @@ export default function DashboardPage() {
                 onSelectStock={(sym) => setSelectedStock(stocks.find(s => s.symbol === sym) ?? null)}
                 onTradeComplete={handleTradeComplete}
               />
+            )}
+
+            {rightTab === "wealth" && userId && (
+              <MarketWealth userId={userId} />
             )}
 
             {rightTab === "orders" && participantId && (

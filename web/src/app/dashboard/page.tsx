@@ -31,9 +31,10 @@ import IPOPanel        from "@/components/IPOPanel";
 import DayTradingHUD    from "@/components/DayTradingHUD";
 import PredictionBets  from "@/components/PredictionBets";
 import BracketView     from "@/components/BracketView";
+import OptionsPanel    from "@/components/OptionsPanel";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo";
-type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict";
+type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options";
 
 interface ParticipantSnapshot {
   id: string;
@@ -735,6 +736,7 @@ export default function DashboardPage() {
               ["picks",     "📈 Picks"],
               ["predict",   "🎯 Predict"],
               ["ai",        "✦ AI"],
+              ["options",    "⚙ Options"],
               ["orders",     "Orders"],
               ["automation", "⚡ Auto"],
             ] as [RightTab, string][]).map(([key, label]) => (
@@ -826,6 +828,16 @@ export default function DashboardPage() {
                   setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
                   setRightTab("trade");
                 }}
+              />
+            )}
+
+            {rightTab === "options" && participant && (
+              <OptionsPanel
+                participant={participant}
+                stocks={stocks}
+                selectedStock={selectedStock}
+                onSelectStock={(sym) => setSelectedStock(stocks.find(s => s.symbol === sym) ?? null)}
+                onTradeComplete={handleTradeComplete}
               />
             )}
 

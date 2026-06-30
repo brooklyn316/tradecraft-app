@@ -119,15 +119,26 @@ export async function POST(req: NextRequest) {
   });
 }
 
-// ── GET /api/options — fetch option chain for a symbol ────────────────────
+// ── GET /api/options — fetch positions for a participant ──────────────────
+// ?participantId=<uuid>            → returns all open + settled positions
+// ?participantId=<uuid>&symbol=<X> → scoped to one symbol + stock price
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const symbol = searchParams.get("symbol");
+  const symbol        = searchParams.get("symbol");
   const participantId = searchParams.get("participantId");
 
-  if (!symbol) return NextResponse.json({ error: "Missing symbol" }, { status: 400 });
-
   const db = getAdminClient();
+
+  // If participantId provided without a specific symbol, return all positions
+  if (participantId && (!symbol || symbol === "ALL")) {
+    const [{ data: open }, { data: settled }] = await Promise.all([
+      db.from("option_positions").select("*").eq("participant_id", participantId).eq("settled", false).order("purchased_at", { ascending: false }),
+      db.from("option_positions").select("*").eq("participant_id", participantId).eq("settled", true).order("purchased_at", { ascending: false }).limit(20),
+    ]);
+    return NextResponse.json({ open: open ?? [], settled: settled ?? [] });
+  }
+
+  if (!symbol) return NextResponse.json({ error: "Missing symbol" }, { status: 400 });
 
   const [{ data: sp }, { data: positions }] = await Promise.all([
     db.from("stock_prices").select("price, company_name").eq("symbol", symbol).single(),

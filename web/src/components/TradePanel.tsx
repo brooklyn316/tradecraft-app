@@ -9,14 +9,16 @@ interface TradePanelProps {
   participant: CompetitionParticipant;
   holding: Holding | null;
   shortPosition: ShortPosition | null;
+  marginLimit?: number;
   onTradeComplete: () => void;
 }
 
 type Mode = "market" | "limit";
 
-export default function TradePanel({ stock, participant, holding, shortPosition, onTradeComplete }: TradePanelProps) {
+export default function TradePanel({ stock, participant, holding, shortPosition, marginLimit = 0, onTradeComplete }: TradePanelProps) {
   const [mode, setMode] = useState<Mode>("market");
   const [action, setAction] = useState<"buy" | "sell" | "short" | "cover">("buy");
+  const [useMargin, setUseMargin] = useState(false);
   const [sharesInput, setSharesInput] = useState("");
   const [limitPriceInput, setLimitPriceInput] = useState(stock.price.toFixed(2));
   const [loading, setLoading] = useState(false);
@@ -29,18 +31,26 @@ export default function TradePanel({ stock, participant, holding, shortPosition,
   const price = mode === "market" ? stock.price : limitPrice;
   const total = shares * price;
 
-  const canAfford      = total <= participant.cash_balance;
+  // Margin: how much more they can borrow (current borrowed = abs(cash) if negative)
+  const currentBorrowed   = participant.cash_balance < 0 ? Math.abs(participant.cash_balance) : 0;
+  const remainingMargin   = Math.max(0, marginLimit - currentBorrowed);
+  const effectiveBuyPower = participant.cash_balance + (useMargin ? remainingMargin : 0);
+  const marginUsedOnTrade = useMargin && total > participant.cash_balance
+    ? Math.min(total - participant.cash_balance, remainingMargin)
+    : 0;
+
+  const canAfford      = total <= effectiveBuyPower;
   const hasShares      = holding && holding.shares >= shares;
   const hasShortShares = shortPosition && shortPosition.shares >= shares;
   const isValid =
     shares > 0 &&
     (action === "buy"    ? canAfford :
      action === "sell"   ? !!hasShares :
-     action === "short"  ? canAfford :  // needs collateral
+     action === "short"  ? total <= participant.cash_balance :
      action === "cover"  ? !!hasShortShares : false) &&
     (mode === "limit" ? limitPrice > 0 : true);
 
-  const maxBuyShares   = Math.floor(participant.cash_balance / price);
+  const maxBuyShares   = Math.floor(effectiveBuyPower / price);
   const maxSellShares  = holding ? Math.floor(holding.shares) : 0;
   const maxShortShares = Math.floor(participant.cash_balance / price);
   const maxCoverShares = shortPosition ? Math.floor(shortPosition.shares) : 0;
@@ -81,6 +91,24 @@ export default function TradePanel({ stock, participant, holding, shortPosition,
           ? ` · P&L: ${data.pnl >= 0 ? "+" : ""}$${data.pnl.toFixed(2)}`
           : "";
         setSuccess(`${action === "short" ? "Shorted" : "Covered"} ${shares} × ${stock.symbol} @ $${stock.price.toFixed(2)}${pnlStr}`);
+      } else if (action === "buy" && useMargin && total > participant.cash_balance) {
+        // Margin buy
+        const res = await fetch("/api/margin-buy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            participantId: participant.id,
+            symbol: stock.symbol,
+            companyName: stock.company_name ?? stock.symbol,
+            shares,
+            price: stock.price,
+            currentCashBalance: participant.cash_balance,
+            marginLimit,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error ?? "Margin buy failed");
+        setSuccess(`Bought ${shares} × ${stock.symbol} @ $${stock.price.toFixed(2)} · $${data.borrowed.toFixed(0)} on margin`);
       } else {
         await executeTrade({
           participantId: participant.id, symbol: stock.symbol,
@@ -120,7 +148,7 @@ export default function TradePanel({ stock, participant, holding, shortPosition,
   }
 
   function setPercent(pct: number) {
-    if (action === "buy")   setSharesInput(Math.floor((participant.cash_balance * pct) / price).toString());
+    if (action === "buy")   setSharesInput(Math.floor((effectiveBuyPower * pct) / price).toString());
     else if (action === "sell")  setSharesInput(Math.floor(maxSellShares * pct).toString());
     else if (action === "short") setSharesInput(Math.floor((participant.cash_balance * pct) / price).toString());
     else if (action === "cover") setSharesInput(Math.floor(maxCoverShares * pct).toString());
@@ -221,6 +249,36 @@ export default function TradePanel({ stock, participant, holding, shortPosition,
           ))}
         </div>
 
+        {/* Margin toggle — only on Buy */}
+        {action === "buy" && marginLimit > 0 && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px",
+            background: useMargin ? "rgba(251,191,36,0.06)" : "rgba(255,255,255,0.02)",
+            border: `1px solid ${useMargin ? "rgba(251,191,36,0.2)" : "rgba(255,255,255,0.07)"}`,
+            borderRadius: 9, cursor: "pointer" }}
+            onClick={() => setUseMargin(m => !m)}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: useMargin ? "#fbbf24" : "rgba(232,234,240,0.6)" }}>
+                ⚡ Use Margin
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(232,234,240,0.4)", marginTop: 1 }}>
+                {useMargin
+                  ? `$${remainingMargin.toFixed(0)} borrowing power · 0.05% interest/tick`
+                  : `2× leverage available · $${remainingMargin.toFixed(0)} remaining`}
+              </div>
+            </div>
+            <div style={{ width: 36, height: 20, borderRadius: 10, background: useMargin ? "#fbbf24" : "rgba(255,255,255,0.1)", position: "relative", transition: "all 0.2s", flexShrink: 0 }}>
+              <div style={{ position: "absolute", top: 2, left: useMargin ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "white", transition: "left 0.2s" }} />
+            </div>
+          </div>
+        )}
+
+        {/* Margin call warning */}
+        {currentBorrowed > 0 && (
+          <div style={{ padding: "7px 11px", background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.18)", borderRadius: 8, fontSize: 10, color: "rgba(251,191,36,0.75)", lineHeight: 1.5 }}>
+            ⚠ ${currentBorrowed.toFixed(0)} on margin · Interest charged each tick · Margin call triggers at 120% debt ratio
+          </div>
+        )}
+
         {/* Short mode explainer */}
         {action === "short" && (
           <div style={{ padding: "8px 12px", background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.15)", borderRadius: 9, fontSize: 11, color: "rgba(249,115,22,0.8)", lineHeight: 1.5 }}>
@@ -314,6 +372,11 @@ export default function TradePanel({ stock, participant, holding, shortPosition,
               <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${cashPercent}%`, background: cashPercent > 80 ? "#f87171" : "#4ade80", opacity: 0.7, borderRadius: 2 }} />
               </div>
+              {useMargin && marginUsedOnTrade > 0 && (
+                <div style={{ marginTop: 8, fontSize: 10, color: "rgba(251,191,36,0.75)", fontFamily: "monospace" }}>
+                  ⚡ ${marginUsedOnTrade.toFixed(0)} borrowed on margin · interest 0.05%/tick
+                </div>
+              )}
             </div>
           )}
           {action === "sell" && (

@@ -149,7 +149,7 @@ export default function DashboardPage() {
         if (cid) {
           const { data: participants } = await supabase
             .from("competition_participants")
-            .select("id, user_id, is_bot, bot_strategy, cash_balance, profiles(username)")
+            .select("id, user_id, is_bot, bot_strategy, cash_balance, margin_limit, profiles(username)")
             .eq("competition_id", cid);
 
           if (participants?.length) {
@@ -725,6 +725,7 @@ export default function DashboardPage() {
                   participant={participant}
                   holding={selectedHolding}
                   shortPosition={selectedShortPosition}
+                  marginLimit={participant.margin_limit ?? 0}
                   onTradeComplete={handleTradeComplete}
                 />
               ) : (
@@ -741,6 +742,7 @@ export default function DashboardPage() {
                 shortPositions={shortPositions}
                 prices={stocks}
                 startingCash={competition?.starting_cash ?? 10000}
+                marginLimit={participant.margin_limit ?? 0}
                 onSelectSymbol={(sym) => {
                   setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
                   setRightTab("trade");

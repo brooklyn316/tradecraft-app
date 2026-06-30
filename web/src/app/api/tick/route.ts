@@ -301,6 +301,80 @@ async function processPlayerRules(db: DB, compId: string, prices: StockPrice[]):
   return fired;
 }
 
+// ── Margin interest + margin calls ──────────────────────────────────────────
+const MARGIN_INTEREST_PER_TICK = 0.0005; // 0.05% per tick on borrowed amount
+const MARGIN_CALL_THRESHOLD    = 1.20;   // liquidate if total_value < borrowed * 1.20
+
+async function processMargin(db: DB, compId: string, prices: StockPrice[]): Promise<{ interest: number; calls: number }> {
+  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]));
+
+  const { data: participants } = await db
+    .from("competition_participants")
+    .select("id, cash_balance, margin_limit")
+    .eq("competition_id", compId)
+    .eq("is_bot", false);
+
+  if (!participants?.length) return { interest: 0, calls: 0 };
+
+  let interestCharged = 0;
+  let marginCalls = 0;
+
+  for (const p of participants) {
+    const borrowed = p.cash_balance < 0 ? Math.abs(p.cash_balance) : 0;
+    if (borrowed <= 0) continue;
+
+    // Fetch holdings to compute portfolio value
+    const { data: holdings } = await db
+      .from("holdings")
+      .select("symbol, shares")
+      .eq("participant_id", p.id);
+
+    const holdingsValue = (holdings ?? []).reduce((sum, h) => {
+      const sp = priceMap[h.symbol];
+      return sum + h.shares * (sp?.price ?? 0);
+    }, 0);
+
+    const totalValue = p.cash_balance + holdingsValue; // cash is negative
+
+    // ── Margin call check ──────────────────────────────────────────────────
+    if (totalValue < borrowed * MARGIN_CALL_THRESHOLD) {
+      // Force-sell largest holding to cover margin
+      const sortedHoldings = (holdings ?? [])
+        .map(h => ({ ...h, value: h.shares * (priceMap[h.symbol]?.price ?? 0) }))
+        .sort((a, b) => b.value - a.value);
+
+      for (const h of sortedHoldings) {
+        const sp = priceMap[h.symbol];
+        if (!sp || h.shares < 1) continue;
+        const sellValue = h.shares * sp.price;
+        // Sell entire position
+        await db.from("competition_participants")
+          .update({ cash_balance: p.cash_balance + sellValue })
+          .eq("id", p.id);
+        await db.from("holdings").delete()
+          .eq("participant_id", p.id).eq("symbol", h.symbol);
+        await db.from("trades").insert({
+          participant_id: p.id, symbol: h.symbol,
+          company_name: sp.company_name ?? h.symbol,
+          action: "sell", shares: h.shares, price: sp.price, total: sellValue,
+        });
+        marginCalls++;
+        break; // One liquidation per tick — re-evaluate next tick
+      }
+      continue;
+    }
+
+    // ── Charge interest ────────────────────────────────────────────────────
+    const interest = borrowed * MARGIN_INTEREST_PER_TICK;
+    await db.from("competition_participants")
+      .update({ cash_balance: p.cash_balance - interest })
+      .eq("id", p.id);
+    interestCharged++;
+  }
+
+  return { interest: interestCharged, calls: marginCalls };
+}
+
 // ── End expired competitions ─────────────────────────────────────────────────
 async function endExpiredCompetitions(db: DB): Promise<number> {
   const today = new Date().toISOString().split("T")[0];
@@ -350,6 +424,8 @@ export async function GET(req: NextRequest) {
   let tradesExecuted = 0;
   let ordersFilledTotal = 0;
   let playerRulesFired = 0;
+  let marginInterestCharged = 0;
+  let marginCallsFired = 0;
 
   for (const comp of competitions) {
     // Process limit orders
@@ -359,6 +435,11 @@ export async function GET(req: NextRequest) {
     // Process player automation rules
     const rulesFired = await processPlayerRules(db, comp.id, stockPrices);
     playerRulesFired += rulesFired;
+
+    // Process margin interest + margin calls
+    const { interest, calls } = await processMargin(db, comp.id, stockPrices);
+    marginInterestCharged += interest;
+    marginCallsFired += calls;
 
     // Run bots
     const { data: bots } = await db
@@ -388,5 +469,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, ended, competitions: competitions.length });
+  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, ended, competitions: competitions.length });
 }

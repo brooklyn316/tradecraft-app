@@ -10,6 +10,7 @@ interface PortfolioProps {
   shortPositions: ShortPosition[];
   prices: StockPrice[];
   startingCash: number;
+  marginLimit?: number;
   onSelectSymbol: (symbol: string) => void;
 }
 
@@ -46,7 +47,7 @@ function AnimatedNumber({ value, format }: { value: number; format: (v: number) 
   return <span>{format(display)}</span>;
 }
 
-export default function Portfolio({ participant, holdings, shortPositions, prices, startingCash, onSelectSymbol }: PortfolioProps) {
+export default function Portfolio({ participant, holdings, shortPositions, prices, startingCash, marginLimit = 0, onSelectSymbol }: PortfolioProps) {
   const priceMap = Object.fromEntries(prices.map((p) => [p.symbol, p]));
 
   const enrichedHoldings = holdings.map((h) => {
@@ -121,8 +122,35 @@ export default function Portfolio({ participant, holdings, shortPositions, price
             <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />
             <span style={{ fontSize: 11, color: "rgba(232,234,240,0.45)" }}>Cash available</span>
           </div>
-          <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 700, color: "white" }}>{formatCurrency(participant.cash_balance)}</span>
+          <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 700, color: participant.cash_balance < 0 ? "#fbbf24" : "white" }}>
+            {formatCurrency(participant.cash_balance)}
+          </span>
         </div>
+
+        {/* Margin utilisation bar — only shown when borrowed > 0 */}
+        {(() => {
+          const borrowed = participant.cash_balance < 0 ? Math.abs(participant.cash_balance) : 0;
+          if (borrowed === 0 || marginLimit === 0) return null;
+          const usedPct = Math.min(100, (borrowed / marginLimit) * 100);
+          return (
+            <div style={{ marginTop: 8, padding: "8px 12px", background: "rgba(251,191,36,0.05)", border: "1px solid rgba(251,191,36,0.15)", borderRadius: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 9, color: "#fbbf24", fontWeight: 800 }}>⚡ MARGIN</span>
+                </div>
+                <span style={{ fontSize: 11, fontFamily: "monospace", color: "#fbbf24" }}>
+                  {formatCurrency(borrowed)} / {formatCurrency(marginLimit)}
+                </span>
+              </div>
+              <div style={{ height: 4, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${usedPct}%`, background: usedPct > 80 ? "#f87171" : "#fbbf24", opacity: 0.7, borderRadius: 2, transition: "width 0.4s ease" }} />
+              </div>
+              <div style={{ fontSize: 9, color: "rgba(232,234,240,0.4)", marginTop: 4, fontFamily: "monospace" }}>
+                {formatCurrency(marginLimit - borrowed)} remaining · 0.05% interest/tick
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Analytics block ── */}

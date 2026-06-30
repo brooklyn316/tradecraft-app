@@ -37,6 +37,7 @@ export type CompetitionParticipant = {
   is_bot: boolean;
   bot_strategy: BotStrategy | null;
   cash_balance: number;
+  margin_limit: number;
   joined_at: string;
   // joined from profiles
   profile?: Profile;

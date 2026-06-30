@@ -38,9 +38,10 @@ import GlobalLeaderboard  from "@/components/GlobalLeaderboard";
 import SectorRotation     from "@/components/SectorRotation";
 import MarketWealth       from "@/components/MarketWealth";
 import CopyTradeModal     from "@/components/CopyTradeModal";
+import TradeJournal       from "@/components/TradeJournal";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo" | "challenge" | "global";
-type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options" | "wealth";
+type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options" | "wealth" | "journal";
 
 interface ParticipantSnapshot {
   id: string;
@@ -769,6 +770,7 @@ export default function DashboardPage() {
               ["ai",        "✦ AI"],
               ["options",    "⚙ Options"],
               ["wealth",     "💎 Wealth"],
+              ["journal",    "📓 Journal"],
               ["orders",     "Orders"],
               ["automation", "⚡ Auto"],
             ] as [RightTab, string][]).map(([key, label]) => (
@@ -875,6 +877,13 @@ export default function DashboardPage() {
 
             {rightTab === "wealth" && userId && (
               <MarketWealth userId={userId} />
+            )}
+
+            {rightTab === "journal" && participantId && (
+              <TradeJournal
+                participantId={participantId}
+                competitionEnded={competition?.status === "completed"}
+              />
             )}
 
             {rightTab === "orders" && participantId && (

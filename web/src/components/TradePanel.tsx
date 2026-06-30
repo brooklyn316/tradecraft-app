@@ -187,12 +187,29 @@ export default function TradePanel({ stock, participant, holding, shortPosition,
       </div>
 
       {/* Long holding badge */}
-      {holding && (
-        <div style={{ margin: "12px 16px 0", padding: "10px 14px", background: "rgba(125,211,176,0.07)", border: "1px solid rgba(125,211,176,0.18)", borderRadius: 10, display: "flex", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 13, color: "#7dd3b0", fontWeight: 600 }}>You own {holding.shares.toFixed(0)} shares</span>
-          <span style={{ fontSize: 12, fontFamily: "monospace", color: "rgba(232,234,240,0.4)" }}>avg ${holding.avg_cost.toFixed(2)}</span>
-        </div>
-      )}
+      {holding && (() => {
+        const heldMs   = holding.first_bought_at ? Date.now() - new Date(holding.first_bought_at).getTime() : 0;
+        const heldDays = Math.floor(heldMs / 86400000);
+        const heldHrs  = Math.floor((heldMs % 86400000) / 3600000);
+        const heldLabel = heldDays >= 1 ? `${heldDays}d ${heldHrs}h` : heldHrs >= 1 ? `${heldHrs}h` : "< 1h";
+        const boughtDate = holding.first_bought_at
+          ? new Date(holding.first_bought_at).toLocaleDateString([], { month: "short", day: "numeric" })
+          : null;
+        return (
+          <div style={{ margin: "12px 16px 0", padding: "10px 14px", background: "rgba(125,211,176,0.07)", border: "1px solid rgba(125,211,176,0.18)", borderRadius: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, color: "#7dd3b0", fontWeight: 600 }}>You own {holding.shares.toFixed(0)} shares</span>
+              <span style={{ fontSize: 12, fontFamily: "monospace", color: "rgba(232,234,240,0.4)" }}>avg ${holding.avg_cost.toFixed(2)}</span>
+            </div>
+            {boughtDate && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                <span style={{ fontSize: 10, color: "rgba(232,234,240,0.4)" }}>⏱ Held {heldLabel}</span>
+                <span style={{ fontSize: 10, color: "rgba(232,234,240,0.3)" }}>· since {boughtDate}</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Short position badge */}
       {shortPosition && (

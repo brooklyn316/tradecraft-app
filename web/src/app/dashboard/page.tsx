@@ -769,6 +769,7 @@ export default function DashboardPage() {
                 prices={stocks}
                 startingCash={competition?.starting_cash ?? 10000}
                 marginLimit={participant.margin_limit ?? 0}
+                competitionStyle={competition?.style ?? "standard"}
                 onSelectSymbol={(sym) => {
                   setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
                   setRightTab("trade");

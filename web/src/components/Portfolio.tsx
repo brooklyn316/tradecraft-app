@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Holding, ShortPosition, StockPrice, CompetitionParticipant } from "@/types";
+import type { Holding, ShortPosition, StockPrice, CompetitionParticipant, CompetitionStyle } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/stockApi";
 
 interface PortfolioProps {
@@ -11,7 +11,21 @@ interface PortfolioProps {
   prices: StockPrice[];
   startingCash: number;
   marginLimit?: number;
+  competitionStyle?: CompetitionStyle;
   onSelectSymbol: (symbol: string) => void;
+}
+
+function holdDuration(firstBoughtAt: string | null): { label: string; days: number } {
+  if (!firstBoughtAt) return { label: "", days: 0 };
+  const ms = Date.now() - new Date(firstBoughtAt).getTime();
+  const totalMins = Math.floor(ms / 60000);
+  const days  = Math.floor(totalMins / 1440);
+  const hrs   = Math.floor((totalMins % 1440) / 60);
+  const mins  = totalMins % 60;
+  if (days >= 7)  return { label: `${Math.floor(days / 7)}w ${days % 7}d`, days };
+  if (days >= 1)  return { label: `${days}d ${hrs}h`, days };
+  if (hrs >= 1)   return { label: `${hrs}h ${mins}m`, days };
+  return { label: `${mins}m`, days: 0 };
 }
 
 // Smooth animated number that eases to its new value
@@ -47,7 +61,7 @@ function AnimatedNumber({ value, format }: { value: number; format: (v: number) 
   return <span>{format(display)}</span>;
 }
 
-export default function Portfolio({ participant, holdings, shortPositions, prices, startingCash, marginLimit = 0, onSelectSymbol }: PortfolioProps) {
+export default function Portfolio({ participant, holdings, shortPositions, prices, startingCash, marginLimit = 0, competitionStyle = "standard", onSelectSymbol }: PortfolioProps) {
   const priceMap = Object.fromEntries(prices.map((p) => [p.symbol, p]));
 
   const enrichedHoldings = holdings.map((h) => {
@@ -56,7 +70,8 @@ export default function Portfolio({ participant, holdings, shortPositions, price
     const costBasis = h.shares * h.avg_cost;
     const pnl = marketValue - costBasis;
     const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
-    return { ...h, price, marketValue, pnl, pnlPercent };
+    const duration = holdDuration(h.first_bought_at);
+    return { ...h, price, marketValue, pnl, pnlPercent, duration };
   });
 
   const enrichedShorts = shortPositions.map((s) => {
@@ -223,16 +238,37 @@ export default function Portfolio({ participant, holdings, shortPositions, price
                 const allocationPct = totalValue > 0 ? (h.marketValue / totalValue) * 100 : 0;
                 return (
                   <button key={h.symbol} onClick={() => onSelectSymbol(h.symbol)}
-                    style={{ width: "100%", padding: "11px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", display: "block" }}>
+                    style={{
+                      width: "100%", padding: "11px 16px",
+                      borderBottom: "1px solid rgba(255,255,255,0.04)",
+                      background: competitionStyle === "swing" && h.duration.days >= 2
+                        ? "rgba(251,191,36,0.03)"
+                        : "transparent",
+                      border: "none", cursor: "pointer", textAlign: "left", display: "block",
+                    }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                       <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(232,234,240,0.9)" }}>{h.symbol}</span>
                           <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 4,
                             background: h.pnl >= 0 ? "rgba(74,222,128,0.1)" : "rgba(248,113,113,0.1)",
                             color: h.pnl >= 0 ? "#4ade80" : "#f87171" }}>
                             {h.pnl >= 0 ? "+" : ""}{h.pnlPercent.toFixed(1)}%
                           </span>
+                          {/* Duration label */}
+                          {h.duration.label && (
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, padding: "2px 5px", borderRadius: 4,
+                              background: competitionStyle === "swing" && h.duration.days >= 2
+                                ? "rgba(251,191,36,0.15)"
+                                : "rgba(255,255,255,0.05)",
+                              color: competitionStyle === "swing" && h.duration.days >= 2
+                                ? "#fbbf24"
+                                : "rgba(232,234,240,0.4)",
+                            }}>
+                              {competitionStyle === "swing" && h.duration.days >= 2 ? "📈 " : "⏱ "}{h.duration.label}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: 10, color: "rgba(232,234,240,0.5)", marginTop: 2, fontFamily: "monospace" }}>
                           {h.shares.toFixed(0)} sh · avg ${h.avg_cost.toFixed(2)}
@@ -249,7 +285,9 @@ export default function Portfolio({ participant, holdings, shortPositions, price
                       <div style={{ flex: 1, height: 2, background: "rgba(255,255,255,0.05)", borderRadius: 1, overflow: "hidden" }}>
                         <div style={{ height: "100%", borderRadius: 1, transition: "width 0.4s ease",
                           width: `${allocationPct}%`,
-                          background: h.pnl >= 0 ? "#4ade80" : "#f87171",
+                          background: competitionStyle === "swing" && h.duration.days >= 2
+                            ? "#fbbf24"
+                            : h.pnl >= 0 ? "#4ade80" : "#f87171",
                           opacity: 0.45 }} />
                       </div>
                       <span style={{ fontSize: 9, fontFamily: "monospace", color: "rgba(232,234,240,0.4)" }}>{allocationPct.toFixed(1)}%</span>

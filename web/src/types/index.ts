@@ -52,6 +52,7 @@ export type Holding = {
   shares: number;
   avg_cost: number;
   updated_at: string;
+  first_bought_at: string | null;
   // derived
   current_price?: number;
   market_value?: number;

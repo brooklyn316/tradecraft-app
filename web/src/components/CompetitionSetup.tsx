@@ -10,15 +10,19 @@ interface CompetitionSetupProps {
 }
 
 const DURATION_LABELS: Record<CompetitionDuration, string> = {
+  "1h": "1 Hour",
+  "6h": "6 Hours",
   "1d": "1 Day",
   "3d": "3 Days",
   "1w": "1 Week",
 };
 
-const DURATION_DAYS: Record<CompetitionDuration, number> = {
-  "1d": 1,
-  "3d": 3,
-  "1w": 7,
+const DURATION_HOURS: Record<CompetitionDuration, number> = {
+  "1h": 1,
+  "6h": 6,
+  "1d": 24,
+  "3d": 72,
+  "1w": 168,
 };
 
 const BOTS = [
@@ -74,7 +78,7 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
     const supabase = getSupabaseClient();
     const startDate = new Date();
     const endDate   = new Date(startDate);
-    endDate.setDate(endDate.getDate() + DURATION_DAYS[duration]);
+    endDate.setTime(endDate.getTime() + DURATION_HOURS[duration] * 60 * 60 * 1000);
 
     const { data: comp, error: compErr } = await supabase
       .from("competitions")
@@ -85,8 +89,8 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
         style,
         duration: style === "day_trade" ? "1d" : duration,
         starting_cash: 10000,
-        start_date: startDate.toISOString().split("T")[0],
-        end_date:   endDate.toISOString().split("T")[0],
+        start_date: startDate.toISOString(),
+        end_date:   endDate.toISOString(),
       })
       .select()
       .single();
@@ -161,10 +165,11 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
         </label>
         <div className="grid grid-cols-2 gap-2 mb-3">
           {([
-            { id: "standard",  label: "Standard",   icon: "📊", desc: "No restrictions. Hold as long as you want." },
-            { id: "day_trade", label: "Day Trade",  icon: "⚡", desc: "Must close all positions by 4pm ET daily. Forces tight P&L discipline." },
-            { id: "swing",     label: "Swing",      icon: "📈", desc: "Multi-day holds. Positions labelled by how long you've held." },
-            { id: "bracket",   label: "Bracket",    icon: "🏆", desc: "Head-to-head elimination rounds. Best return advances." },
+            { id: "standard",  label: "Standard",      icon: "📊", desc: "No restrictions. Hold as long as you want." },
+            { id: "day_trade", label: "Day Trade",     icon: "⚡", desc: "Must close all positions by 4pm ET daily. Forces tight P&L discipline." },
+            { id: "swing",     label: "Swing",         icon: "📈", desc: "Multi-day holds. Positions labelled by how long you've held." },
+            { id: "bracket",   label: "Bracket",       icon: "🏆", desc: "Head-to-head elimination rounds. Best return advances." },
+            { id: "crypto",    label: "Crypto Blitz",  icon: "₿",  desc: "Trade BTC, ETH, SOL and 17 more. Runs 24/7 — no market hours." },
           ] as { id: CompetitionStyle; label: string; icon: string; desc: string }[]).map((s) => (
             <button
               key={s.id}
@@ -189,6 +194,23 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
         {style === "swing" && (
           <div className="rounded-xl border border-[rgba(96,165,250,0.2)] bg-[rgba(96,165,250,0.05)] p-3 text-[11px] text-[rgba(232,234,240,0.6)] leading-relaxed">
             📈 <strong className="text-[#60a5fa]">Swing rules:</strong> Hold positions across multiple days. Each holding shows how long you've owned it. Reward patience.
+          </div>
+        )}
+        {style === "crypto" && (
+          <div className="rounded-xl border border-[rgba(251,191,36,0.2)] bg-[rgba(251,191,36,0.05)] p-3 text-[11px] text-[rgba(232,234,240,0.6)] leading-relaxed">
+            <p className="mb-2">₿ <strong className="text-[#fbbf24]">Crypto Blitz:</strong> Trade Bitcoin, Ethereum, Solana, Dogecoin and 16 more coins. Markets never close — play any time, any day.</p>
+            <div className="flex gap-2 mt-2">
+              {(["1h","6h","1d","3d"] as const).map((k) => (
+                <button key={k} onClick={() => setDuration(k)}
+                  className="flex-1 py-1.5 rounded-lg text-[10px] font-bold border transition-all"
+                  style={{
+                    background: duration === k ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.03)",
+                    borderColor: duration === k ? "rgba(251,191,36,0.4)" : "rgba(255,255,255,0.08)",
+                    color: duration === k ? "#fbbf24" : "rgba(232,234,240,0.45)",
+                  }}>{DURATION_LABELS[k]}</button>
+              ))}
+            </div>
+            <p className="text-[9px] mt-2 text-[rgba(232,234,240,0.35)]">Prices via CoinGecko · updated every minute</p>
           </div>
         )}
         {style === "bracket" && (
@@ -282,8 +304,8 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
         )}
       </div>
 
-      {/* Duration — hidden for day_trade and bracket */}
-      <div style={{ display: (style === "day_trade" || style === "bracket") ? "none" : undefined }}>
+      {/* Duration — hidden for day_trade, bracket, and crypto (crypto has inline picker) */}
+      <div style={{ display: (style === "day_trade" || style === "bracket" || style === "crypto") ? "none" : undefined }}>
         <label className="block text-[10px] font-semibold text-[rgba(232,234,240,0.55)] uppercase tracking-widest mb-2">
           Duration
         </label>

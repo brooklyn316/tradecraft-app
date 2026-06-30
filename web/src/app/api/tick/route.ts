@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getTodaysChallenge } from "@/lib/daily-challenge";
 import { updateStreak, checkAndAwardBadges } from "@/lib/badges";
+import { awardMW, badgeMWReward, MW_REWARDS } from "@/lib/market-wealth";
+import { refreshCryptoPrices, CRYPTO_SYMBOLS } from "@/lib/crypto-prices";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
@@ -681,9 +683,10 @@ async function processDailyChallenges(db: DB, prices: StockPrice[]): Promise<num
         reward_granted: challenge.reward_cash,
       });
 
-      // Update streak
+      // Update streak + award MW for daily challenge
       if (p.user_id) {
         await updateStreak(db, p.user_id);
+        await awardMW(db, p.user_id, MW_REWARDS.daily_challenge, "daily_challenge", challenge.id);
       }
 
       rewarded++;
@@ -753,17 +756,58 @@ async function processOptionsExpiry(db: DB, prices: StockPrice[]): Promise<{ set
   return { settled, totalPayout };
 }
 
-// ── End expired competitions ─────────────────────────────────────────────────
-async function endExpiredCompetitions(db: DB): Promise<number> {
+// ── End expired competitions + award MW ─────────────────────────────────────
+async function endExpiredCompetitions(db: DB, prices: StockPrice[]): Promise<number> {
   const today = new Date().toISOString().split("T")[0];
   const { data: expired } = await db
     .from("competitions")
-    .select("id, name")
+    .select("id, name, starting_cash")
     .eq("status", "active")
     .lt("end_date", today);
   if (!expired?.length) return 0;
+
+  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p.price]));
+
   for (const comp of expired) {
     await db.from("competitions").update({ status: "ended" }).eq("id", comp.id);
+
+    // Compute final rankings
+    const { data: participants } = await db
+      .from("competition_participants")
+      .select("id, user_id, cash_balance, is_bot")
+      .eq("competition_id", comp.id)
+      .eq("is_bot", false)
+      .not("user_id", "is", null);
+
+    if (!participants?.length) continue;
+
+    // Fetch holdings for portfolio value
+    const { data: allHoldings } = await db
+      .from("holdings")
+      .select("participant_id, symbol, shares")
+      .in("participant_id", participants.map(p => p.id));
+
+    const holdMap: Record<string, number> = {};
+    for (const h of (allHoldings ?? []) as { participant_id: string; symbol: string; shares: number }[]) {
+      holdMap[h.participant_id] = (holdMap[h.participant_id] ?? 0) + h.shares * (priceMap[h.symbol] ?? 0);
+    }
+
+    const ranked = [...participants]
+      .map(p => ({ ...p, total: p.cash_balance + (holdMap[p.id] ?? 0) }))
+      .sort((a, b) => b.total - a.total);
+
+    for (let i = 0; i < ranked.length; i++) {
+      const p = ranked[i];
+      if (!p.user_id) continue;
+
+      // Participation reward
+      await awardMW(db, p.user_id, MW_REWARDS.competition_participation, "competition_participation", comp.id);
+
+      // Rank bonus
+      if (i === 0) await awardMW(db, p.user_id, MW_REWARDS.competition_1st, "competition_1st", comp.id);
+      else if (i === 1) await awardMW(db, p.user_id, MW_REWARDS.competition_2nd, "competition_2nd", comp.id);
+      else if (i === 2) await awardMW(db, p.user_id, MW_REWARDS.competition_3rd, "competition_3rd", comp.id);
+    }
   }
   return expired.length;
 }
@@ -779,28 +823,50 @@ export async function GET(req: NextRequest) {
   const marketOpen = isMarketOpen();
   const db = getAdminClient();
 
-  // End expired competitions regardless of market hours
-  const ended = await endExpiredCompetitions(db);
-
-  if (!marketOpen) {
-    return NextResponse.json({ message: "Market closed", ended });
-  }
-
-  // Refresh prices
-  const pricesRefreshed = await refreshPrices(db);
-
-  // Get active competitions
-  const { data: competitions } = await db.from("competitions").select("id").eq("status", "active");
-  if (!competitions?.length) {
-    return NextResponse.json({ message: "No active competitions", pricesRefreshed, ended });
-  }
+  // Refresh prices — stocks only during market hours, crypto always
+  const [pricesRefreshed, cryptoRefreshed] = await Promise.all([
+    marketOpen ? refreshPrices(db) : Promise.resolve(false),
+    refreshCryptoPrices(db),
+  ]);
 
   // Get current prices
   const { data: priceRows } = await db.from("stock_prices").select("symbol, company_name, price, change_percent");
   const stockPrices: StockPrice[] = priceRows ?? [];
 
-  // Process IPOs (global — not per competition)
-  const iposListed = await processIPOs(db);
+  // End expired competitions (awards MW, so needs prices)
+  const ended = await endExpiredCompetitions(db, stockPrices);
+
+  // Get active competitions — always process crypto ones even when market is closed
+  const { data: competitions } = await db
+    .from("competitions")
+    .select("id, style")
+    .eq("status", "active");
+
+  const cryptoCompIds = new Set(
+    (competitions ?? []).filter((c: { id: string; style: string }) => c.style === "crypto").map((c: { id: string }) => c.id)
+  );
+  const hasCryptoComps = cryptoCompIds.size > 0;
+
+  if (!marketOpen && !hasCryptoComps) {
+    return NextResponse.json({ message: "Market closed", ended, cryptoRefreshed });
+  }
+
+  if (!competitions?.length) {
+    return NextResponse.json({ message: "No active competitions", pricesRefreshed, cryptoRefreshed, ended });
+  }
+  const cryptoPrices = stockPrices.filter(p => CRYPTO_SYMBOLS.includes(p.symbol as typeof CRYPTO_SYMBOLS[number]));
+
+  // When market is closed, only process crypto competitions
+  const activeComps = marketOpen
+    ? (competitions ?? [])
+    : (competitions ?? []).filter((c: { id: string; style: string }) => c.style === "crypto");
+
+  if (!activeComps.length) {
+    return NextResponse.json({ message: "No eligible competitions to process", pricesRefreshed, cryptoRefreshed, ended });
+  }
+
+  // Process IPOs (global — not per competition, only during market hours)
+  const iposListed = marketOpen ? await processIPOs(db) : 0;
 
   // Settle expired options
   const { settled: optionsSettled, totalPayout: optionsPayout } = await processOptionsExpiry(db, stockPrices);
@@ -808,14 +874,16 @@ export async function GET(req: NextRequest) {
   // Process daily challenges
   const challengesRewarded = await processDailyChallenges(db, stockPrices);
 
-  // Advance bracket rounds
-  const bracketsAdvanced = await processBrackets(db);
+  // Advance bracket rounds (only during market hours)
+  const bracketsAdvanced = marketOpen ? await processBrackets(db) : 0;
 
-  // Resolve prediction bets
-  const { wins: betWins, losses: betLosses, pushes: betPushes } = await processPredictionBets(db, stockPrices);
+  // Resolve prediction bets (only during market hours)
+  const { wins: betWins, losses: betLosses, pushes: betPushes } = marketOpen
+    ? await processPredictionBets(db, stockPrices)
+    : { wins: 0, losses: 0, pushes: 0 };
 
-  // Day trade EOD force-close
-  const eodClosed = await processEODClose(db, stockPrices);
+  // Day trade EOD force-close (only during market hours)
+  const eodClosed = marketOpen ? await processEODClose(db, stockPrices) : 0;
 
   let tradesExecuted = 0;
   let ordersFilledTotal = 0;
@@ -823,17 +891,21 @@ export async function GET(req: NextRequest) {
   let marginInterestCharged = 0;
   let marginCallsFired = 0;
 
-  for (const comp of competitions) {
+  for (const comp of activeComps) {
+    const isCrypto = cryptoCompIds.has(comp.id);
+    // Use crypto-only prices for crypto competitions, full list otherwise
+    const compPrices = isCrypto ? cryptoPrices : stockPrices;
+
     // Process limit orders
-    const ordersFilled = await processLimitOrders(db, stockPrices);
+    const ordersFilled = await processLimitOrders(db, compPrices);
     ordersFilledTotal += ordersFilled;
 
     // Process player automation rules
-    const rulesFired = await processPlayerRules(db, comp.id, stockPrices);
+    const rulesFired = await processPlayerRules(db, comp.id, compPrices);
     playerRulesFired += rulesFired;
 
     // Process margin interest + margin calls
-    const { interest, calls } = await processMargin(db, comp.id, stockPrices);
+    const { interest, calls } = await processMargin(db, comp.id, compPrices);
     marginInterestCharged += interest;
     marginCallsFired += calls;
 
@@ -856,14 +928,14 @@ export async function GET(req: NextRequest) {
       const { data: holdings } = await db.from("holdings").select("id, participant_id, symbol, shares, avg_cost").eq("participant_id", bot.id);
       try {
         switch (bot.bot_strategy) {
-          case "index":    await runIndexBot(db, bot, holdings ?? [], stockPrices); break;
-          case "momentum": await runMomentumBot(db, bot, holdings ?? [], stockPrices); break;
-          case "random":   await runChaosBot(db, bot, holdings ?? [], stockPrices); break;
+          case "index":    await runIndexBot(db, bot, holdings ?? [], compPrices); break;
+          case "momentum": await runMomentumBot(db, bot, holdings ?? [], compPrices); break;
+          case "random":   await runChaosBot(db, bot, holdings ?? [], compPrices); break;
         }
         tradesExecuted++;
       } catch (err) { console.error(`Bot ${bot.id} error:`, err); }
     }
   }
 
-  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, bracketsAdvanced, optionsSettled, optionsPayout, challengesRewarded, ended, competitions: competitions.length });
+  return NextResponse.json({ success: true, pricesRefreshed, cryptoRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, bracketsAdvanced, optionsSettled, optionsPayout, challengesRewarded, ended, competitions: activeComps.length });
 }

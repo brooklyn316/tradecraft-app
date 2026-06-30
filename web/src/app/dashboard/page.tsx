@@ -39,6 +39,7 @@ import SectorRotation     from "@/components/SectorRotation";
 import MarketWealth       from "@/components/MarketWealth";
 import CopyTradeModal     from "@/components/CopyTradeModal";
 import TradeJournal       from "@/components/TradeJournal";
+import { CRYPTO_SYMBOLS } from "@/lib/crypto-prices";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo" | "challenge" | "global";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options" | "wealth" | "journal";
@@ -337,7 +338,13 @@ export default function DashboardPage() {
     );
   }
 
-  const spy = stocks.find(s => s.symbol === "SPY");
+  const isCrypto      = competition?.style === "crypto";
+  const visibleStocks = isCrypto
+    ? stocks.filter(s => CRYPTO_SYMBOLS.includes(s.symbol as typeof CRYPTO_SYMBOLS[number]))
+    : stocks;
+  const spy = isCrypto
+    ? visibleStocks.find(s => s.symbol === "BTC")
+    : visibleStocks.find(s => s.symbol === "SPY");
 
   function timeAgo(iso: string) {
     const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -390,7 +397,7 @@ export default function DashboardPage() {
     );
   };
 
-  const sortedStocks = [...stocks].filter(s => s.change_percent != null);
+  const sortedStocks = [...visibleStocks].filter(s => s.change_percent != null);
   const gainers = [...sortedStocks].sort((a, b) => (b.change_percent ?? 0) - (a.change_percent ?? 0)).slice(0, 8);
   const losers  = [...sortedStocks].sort((a, b) => (a.change_percent ?? 0) - (b.change_percent ?? 0)).slice(0, 8);
 
@@ -426,6 +433,7 @@ export default function DashboardPage() {
               {c.competition?.style === "day_trade" && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>⚡</span>}
               {c.competition?.style === "swing"     && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>📈</span>}
               {c.competition?.style === "bracket"   && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>🏆</span>}
+              {c.competition?.style === "crypto"    && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.9 }}>₿</span>}
             </button>
           ))}
         </div>
@@ -457,8 +465,8 @@ export default function DashboardPage() {
       </header>
 
       {/* ── Ticker bar ── */}
-      {stocks.length > 0 && (
-        <TickerBar stocks={stocks} onSelect={handleTickerSelect} />
+      {visibleStocks.length > 0 && (
+        <TickerBar stocks={visibleStocks} onSelect={handleTickerSelect} />
       )}
 
       {/* ── Day trading HUD ── */}
@@ -466,7 +474,7 @@ export default function DashboardPage() {
         <DayTradingHUD
           participant={participant}
           holdings={holdings}
-          prices={stocks}
+          prices={visibleStocks}
           trades={trades}
           startingCash={competition.starting_cash}
         />
@@ -560,7 +568,7 @@ export default function DashboardPage() {
 
             {bottomTab === "markets" && (
               <StockList
-                stocks={stocks}
+                stocks={visibleStocks}
                 selectedSymbol={selectedStock?.symbol ?? ""}
                 onSelect={(stock) => setSelectedStock(stock)}
               />
@@ -586,7 +594,7 @@ export default function DashboardPage() {
             {bottomTab === "watchlist" && userId && (
               <Watchlist
                 userId={userId}
-                stocks={stocks}
+                stocks={visibleStocks}
                 onSelect={(stock) => setSelectedStock(stock)}
               />
             )}
@@ -594,7 +602,7 @@ export default function DashboardPage() {
             {bottomTab === "alerts" && userId && (
               <PriceAlerts
                 userId={userId}
-                stocks={stocks}
+                stocks={visibleStocks}
                 refreshKey={refreshKey}
                 onSelectSymbol={(sym) => setSelectedStock(stocks.find(s => s.symbol === sym) ?? null)}
               />
@@ -605,7 +613,7 @@ export default function DashboardPage() {
                 competitionId={competition.id}
                 currentUserId={userId}
                 startingCash={competition.starting_cash}
-                stocks={stocks}
+                stocks={visibleStocks}
               />
             )}
 
@@ -732,7 +740,7 @@ export default function DashboardPage() {
             {bottomTab === "sectors" && (
               <SectorRotation
                 participantId={participantId}
-                stocks={stocks}
+                stocks={visibleStocks}
                 onSelectSymbol={(sym) => {
                   setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
                   setRightTab("trade");
@@ -815,7 +823,7 @@ export default function DashboardPage() {
                 participant={participant}
                 holdings={holdings}
                 shortPositions={shortPositions}
-                prices={stocks}
+                prices={visibleStocks}
                 startingCash={competition?.starting_cash ?? 10000}
                 marginLimit={participant.margin_limit ?? 0}
                 competitionStyle={competition?.style ?? "standard"}
@@ -832,7 +840,7 @@ export default function DashboardPage() {
 
             {rightTab === "picks" && participant && (
               <MarketSignals
-                stocks={stocks}
+                stocks={visibleStocks}
                 holdings={holdings}
                 cashBalance={participant.cash_balance}
                 onSelectSymbol={(sym) => {
@@ -845,7 +853,7 @@ export default function DashboardPage() {
             {rightTab === "predict" && participant && (
               <PredictionBets
                 participant={participant}
-                stocks={stocks}
+                stocks={visibleStocks}
                 selectedStock={selectedStock}
                 onTradeComplete={handleTradeComplete}
               />
@@ -855,7 +863,7 @@ export default function DashboardPage() {
               <AIAdvisor
                 participant={participant}
                 holdings={holdings}
-                stocks={stocks}
+                stocks={visibleStocks}
                 recentTrades={trades}
                 startingCash={competition?.starting_cash ?? 10000}
                 onSelectSymbol={(sym) => {
@@ -868,7 +876,7 @@ export default function DashboardPage() {
             {rightTab === "options" && participant && (
               <OptionsPanel
                 participant={participant}
-                stocks={stocks}
+                stocks={visibleStocks}
                 selectedStock={selectedStock}
                 onSelectStock={(sym) => setSelectedStock(stocks.find(s => s.symbol === sym) ?? null)}
                 onTradeComplete={handleTradeComplete}
@@ -898,7 +906,7 @@ export default function DashboardPage() {
               <AutomationRules
                 participantId={participantId}
                 competitionId={competition.id}
-                stocks={stocks}
+                stocks={visibleStocks}
                 cashBalance={participant.cash_balance}
                 refreshKey={refreshKey}
               />

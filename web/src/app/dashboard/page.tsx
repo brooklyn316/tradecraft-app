@@ -33,6 +33,7 @@ import PredictionBets  from "@/components/PredictionBets";
 import BracketView     from "@/components/BracketView";
 import OptionsPanel    from "@/components/OptionsPanel";
 import DailyChallenge  from "@/components/DailyChallenge";
+import StreakBadges    from "@/components/StreakBadges";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo" | "challenge";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options";
@@ -606,11 +607,19 @@ export default function DashboardPage() {
               />
             )}
 
-            {bottomTab === "challenge" && participant && competition && (
-              <DailyChallenge
-                participantId={participant.id}
-                startingCash={competition.starting_cash}
-              />
+            {bottomTab === "challenge" && participant && competition && userId && (
+              <>
+                <DailyChallenge
+                  participantId={participant.id}
+                  startingCash={competition.starting_cash}
+                />
+                <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <StreakBadges
+                    userId={userId}
+                    participantId={participant.id}
+                  />
+                </div>
+              </>
             )}
 
             {bottomTab === "activity" && (() => {

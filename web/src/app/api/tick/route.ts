@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getTodaysChallenge } from "@/lib/daily-challenge";
+import { updateStreak, checkAndAwardBadges } from "@/lib/badges";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
@@ -574,7 +575,8 @@ async function processDailyChallenges(db: DB, prices: StockPrice[]): Promise<num
 
   const today = new Date().toISOString().split("T")[0];
   const todayStart = `${today}T00:00:00Z`;
-  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]));
+  const priceMap     = Object.fromEntries(prices.map(p => [p.symbol, p]));
+  const priceNumMap  = Object.fromEntries(prices.map(p => [p.symbol, p.price]));
 
   // Get all human participants in active competitions not yet completed today's challenge
   const { data: allParticipants } = await db
@@ -679,7 +681,19 @@ async function processDailyChallenges(db: DB, prices: StockPrice[]): Promise<num
         reward_granted: challenge.reward_cash,
       });
 
+      // Update streak
+      if (p.user_id) {
+        await updateStreak(db, p.user_id);
+      }
+
       rewarded++;
+    }
+
+    // Check and award badges every tick (idempotent)
+    if (p.user_id) {
+      const { data: compRow } = await db
+        .from("competitions").select("starting_cash").eq("id", p.competition_id).single();
+      await checkAndAwardBadges(db, p.user_id, p.id, compRow?.starting_cash ?? 10000, priceNumMap);
     }
   }
 

@@ -37,6 +37,7 @@ import StreakBadges       from "@/components/StreakBadges";
 import GlobalLeaderboard  from "@/components/GlobalLeaderboard";
 import SectorRotation     from "@/components/SectorRotation";
 import MarketWealth       from "@/components/MarketWealth";
+import CopyTradeModal     from "@/components/CopyTradeModal";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo" | "challenge" | "global";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options" | "wealth";
@@ -85,6 +86,7 @@ export default function DashboardPage() {
   const [rightTab,  setRightTab]          = useState<RightTab>("trade");
   const [predictStock, setPredictStock]   = useState<{ symbol: string; price: number } | null>(null);
   const [copied, setCopied]               = useState(false);
+  const [copyTrade, setCopyTrade]         = useState<{ symbol: string; action: "buy" | "sell"; shares: number } | null>(null);
   const [unreadActivity, setUnreadActivity] = useState(0);
   const [activityFeed, setActivityFeed]     = useState<Array<{
     username: string; is_bot: boolean; bot_strategy: string | null;
@@ -694,12 +696,22 @@ export default function DashboardPage() {
                             color: buy ? "rgba(74,222,128,0.7)" : "rgba(248,113,113,0.7)" }}>
                             ${total}
                           </span>
-                          <button
-                            onClick={() => { const s = stocks.find(st => st.symbol === t.symbol); if (s) { setSelectedStock(s); setRightTab("trade"); } }}
-                            style={{ marginLeft:"auto", padding:"2px 8px", fontSize:9, borderRadius:5, cursor:"pointer",
-                              background:"rgba(125,211,176,0.07)", border:"1px solid rgba(125,211,176,0.2)", color:"#7dd3b0", fontWeight:700 }}>
-                            Trade →
-                          </button>
+                          <div style={{ marginLeft:"auto", display:"flex", gap:5 }}>
+                            <button
+                              onClick={() => { const s = stocks.find(st => st.symbol === t.symbol); if (s) { setSelectedStock(s); setRightTab("trade"); } }}
+                              style={{ padding:"2px 8px", fontSize:9, borderRadius:5, cursor:"pointer",
+                                background:"rgba(125,211,176,0.07)", border:"1px solid rgba(125,211,176,0.2)", color:"#7dd3b0", fontWeight:700 }}>
+                              Chart →
+                            </button>
+                            <button
+                              onClick={() => setCopyTrade({ symbol: t.symbol, action: t.action as "buy" | "sell", shares: t.shares })}
+                              style={{ padding:"2px 8px", fontSize:9, borderRadius:5, cursor:"pointer",
+                                background: t.action === "buy" ? "rgba(74,222,128,0.08)" : "rgba(248,113,113,0.08)",
+                                border: t.action === "buy" ? "1px solid rgba(74,222,128,0.2)" : "1px solid rgba(248,113,113,0.2)",
+                                color: t.action === "buy" ? "#4ade80" : "#f87171", fontWeight:700 }}>
+                              Copy
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -926,6 +938,21 @@ export default function DashboardPage() {
         </aside>
 
       </div>
+
+      {/* ── Copy-trade modal ── */}
+      {copyTrade && participant && (
+        <CopyTradeModal
+          symbol={copyTrade.symbol}
+          action={copyTrade.action}
+          origShares={copyTrade.shares}
+          currentPrice={stocks.find(s => s.symbol === copyTrade.symbol)?.price ?? 0}
+          participant={{ id: participant.id, cash_balance: participant.cash_balance }}
+          currentHolding={holdings.find(h => h.symbol === copyTrade.symbol)?.shares ?? 0}
+          onClose={() => setCopyTrade(null)}
+          onSuccess={() => { setCopyTrade(null); handleTradeComplete(); }}
+        />
+      )}
+
     </div>
   );
 }

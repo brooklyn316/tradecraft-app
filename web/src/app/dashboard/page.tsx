@@ -27,8 +27,10 @@ import CompetitionSetup from "@/components/CompetitionSetup";
 import StockPredict     from "@/components/StockPredict";
 import MarketEvents     from "@/components/MarketEvents";
 import MarketSignals    from "@/components/MarketSignals";
+import IPOPanel        from "@/components/IPOPanel";
+import DayTradingHUD  from "@/components/DayTradingHUD";
 
-type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors";
+type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks";
 
 interface ParticipantSnapshot {
@@ -407,6 +409,8 @@ export default function DashboardPage() {
               whiteSpace: "nowrap", transition: "all 0.15s",
             }}>
               {c.competition?.name ?? "Competition"}
+              {c.competition?.style === "day_trade" && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>⚡</span>}
+              {c.competition?.style === "swing" && <span style={{ fontSize: 9, marginLeft: 4, opacity: 0.7 }}>📈</span>}
             </button>
           ))}
         </div>
@@ -427,6 +431,17 @@ export default function DashboardPage() {
       {/* ── Ticker bar ── */}
       {stocks.length > 0 && (
         <TickerBar stocks={stocks} onSelect={handleTickerSelect} />
+      )}
+
+      {/* ── Day trading HUD ── */}
+      {competition?.style === "day_trade" && participant && (
+        <DayTradingHUD
+          participant={participant}
+          holdings={holdings}
+          prices={stocks}
+          trades={trades}
+          startingCash={competition.starting_cash}
+        />
       )}
 
       {/* ── Main layout ── */}
@@ -489,6 +504,7 @@ export default function DashboardPage() {
               ["watchlist",   "★ WATCHLIST"],
               ["alerts",      "🔔 ALERTS"],
               ["competition", "COMPETITION"],
+              ["ipo",         "🚀 IPO"],
               ["activity",    "⚡ ACTIVITY"],
               ["news",        "📰 NEWS"],
               ["sectors",     "SECTORS"],
@@ -562,6 +578,16 @@ export default function DashboardPage() {
                 endDate={competition.end_date}
                 competitionId={competition.id}
                 onBotsChanged={loadAll}
+              />
+            )}
+
+            {bottomTab === "ipo" && competition && (
+              <IPOPanel
+                competitionId={competition.id}
+                onSelectSymbol={(sym) => {
+                  setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                  setRightTab("trade");
+                }}
               />
             )}
 

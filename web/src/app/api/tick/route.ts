@@ -375,6 +375,107 @@ async function processMargin(db: DB, compId: string, prices: StockPrice[]): Prom
   return { interest: interestCharged, calls: marginCalls };
 }
 
+// ── Day trading EOD force-close (3:58pm ET) ─────────────────────────────────
+function isEODWindow(): boolean {
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const h = et.getHours();
+  const m = et.getMinutes();
+  const mins = h * 60 + m;
+  // Window: 3:58pm – 4:00pm ET
+  return mins >= 15 * 60 + 58 && mins < 16 * 60;
+}
+
+async function processEODClose(db: DB, prices: StockPrice[]): Promise<number> {
+  if (!isEODWindow()) return 0;
+
+  // Only day_trade competitions
+  const { data: dayComps } = await db
+    .from("competitions")
+    .select("id")
+    .eq("status", "active")
+    .eq("style", "day_trade");
+
+  if (!dayComps?.length) return 0;
+
+  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]));
+  let closed = 0;
+
+  for (const comp of dayComps) {
+    const { data: participants } = await db
+      .from("competition_participants")
+      .select("id, cash_balance")
+      .eq("competition_id", comp.id);
+
+    for (const p of (participants ?? [])) {
+      const { data: holdings } = await db
+        .from("holdings")
+        .select("symbol, shares")
+        .eq("participant_id", p.id);
+
+      for (const h of (holdings ?? [])) {
+        const sp = priceMap[h.symbol];
+        if (!sp || h.shares < 1) continue;
+        const proceeds = h.shares * sp.price;
+        await db.from("competition_participants")
+          .update({ cash_balance: p.cash_balance + proceeds })
+          .eq("id", p.id);
+        await db.from("holdings").delete()
+          .eq("participant_id", p.id).eq("symbol", h.symbol);
+        await db.from("trades").insert({
+          participant_id: p.id, symbol: h.symbol,
+          company_name: sp.company_name ?? h.symbol,
+          action: "sell", shares: h.shares, price: sp.price, total: proceeds,
+        });
+        closed++;
+      }
+    }
+  }
+
+  return closed;
+}
+
+// ── Process IPO events ───────────────────────────────────────────────────────
+const HYPE_VOLATILITY: Record<string, number> = { low: 1.02, medium: 1.08, high: 1.18 };
+
+async function processIPOs(db: DB): Promise<string[]> {
+  const { data: dueIPOs } = await db
+    .from("ipo_events")
+    .select("*")
+    .eq("listed", false)
+    .lte("list_at", new Date().toISOString());
+
+  if (!dueIPOs?.length) return [];
+  const listed: string[] = [];
+
+  for (const ipo of dueIPOs) {
+    // Apply a hype-driven opening pop (random within hype band)
+    const maxMultiplier = HYPE_VOLATILITY[ipo.hype_level] ?? 1.08;
+    const openingPop = 1 + (Math.random() * (maxMultiplier - 1));
+    const openingPrice = Math.round(ipo.ipo_price * openingPop * 100) / 100;
+    const changePct = ((openingPrice - ipo.ipo_price) / ipo.ipo_price) * 100;
+
+    // Insert/update stock_prices so it becomes tradeable
+    await db.from("stock_prices").upsert({
+      symbol:         ipo.symbol,
+      company_name:   ipo.company_name,
+      price:          openingPrice,
+      open:           ipo.ipo_price,
+      prev_close:     ipo.ipo_price,
+      change_amount:  openingPrice - ipo.ipo_price,
+      change_percent: changePct,
+      updated_at:     new Date().toISOString(),
+    }, { onConflict: "symbol" });
+
+    // Mark as listed
+    await db.from("ipo_events").update({ listed: true }).eq("id", ipo.id);
+
+    listed.push(ipo.symbol);
+  }
+
+  return listed;
+}
+
 // ── End expired competitions ─────────────────────────────────────────────────
 async function endExpiredCompetitions(db: DB): Promise<number> {
   const today = new Date().toISOString().split("T")[0];
@@ -420,6 +521,12 @@ export async function GET(req: NextRequest) {
   // Get current prices
   const { data: priceRows } = await db.from("stock_prices").select("symbol, company_name, price, change_percent");
   const stockPrices: StockPrice[] = priceRows ?? [];
+
+  // Process IPOs (global — not per competition)
+  const iposListed = await processIPOs(db);
+
+  // Day trade EOD force-close
+  const eodClosed = await processEODClose(db, stockPrices);
 
   let tradesExecuted = 0;
   let ordersFilledTotal = 0;
@@ -469,5 +576,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, ended, competitions: competitions.length });
+  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, ended, competitions: competitions.length });
 }

@@ -10,8 +10,9 @@ export type Profile = {
   created_at: string;
 };
 
-export type CompetitionMode = "solo" | "friends" | "bot";
+export type CompetitionMode     = "solo" | "friends" | "bot";
 export type CompetitionDuration = "1d" | "3d" | "1w";
+export type CompetitionStyle    = "standard" | "day_trade" | "swing";
 export type CompetitionStatus = "active" | "completed" | "cancelled";
 
 export type Competition = {
@@ -20,6 +21,7 @@ export type Competition = {
   creator_id: string;
   mode: CompetitionMode;
   duration: CompetitionDuration;
+  style: CompetitionStyle;
   starting_cash: number;
   start_date: string;
   end_date: string;

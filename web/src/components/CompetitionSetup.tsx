@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { CompetitionMode, CompetitionDuration } from "@/types";
+import type { CompetitionMode, CompetitionDuration, CompetitionStyle } from "@/types";
 import { getSupabaseClient } from "@/lib/supabase";
 
 interface CompetitionSetupProps {
@@ -59,6 +59,7 @@ const BOTS = [
 
 export default function CompetitionSetup({ userId, onCreated }: CompetitionSetupProps) {
   const [mode, setMode]         = useState<CompetitionMode>("bot");
+  const [style, setStyle]       = useState<CompetitionStyle>("standard");
   const [duration, setDuration] = useState<CompetitionDuration>("1w");
   const [name, setName]         = useState("");
   const [loading, setLoading]   = useState(false);
@@ -80,7 +81,8 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
         name: name.trim(),
         creator_id: userId,
         mode,
-        duration,
+        style,
+        duration: style === "day_trade" ? "1d" : duration,
         starting_cash: 10000,
         start_date: startDate.toISOString().split("T")[0],
         end_date:   endDate.toISOString().split("T")[0],
@@ -140,6 +142,44 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
           placeholder="e.g. March Madness"
           className="w-full bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-xl px-4 py-3 text-sm text-white placeholder-[rgba(232,234,240,0.25)] focus:outline-none focus:border-[rgba(125,211,176,0.4)] transition-colors"
         />
+      </div>
+
+      {/* Style */}
+      <div>
+        <label className="block text-[10px] font-semibold text-[rgba(232,234,240,0.55)] uppercase tracking-widest mb-2">
+          Trading Style
+        </label>
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          {([
+            { id: "standard",  label: "Standard",   icon: "📊", desc: "No restrictions. Hold as long as you want." },
+            { id: "day_trade", label: "Day Trade",  icon: "⚡", desc: "Must close all positions by 4pm ET daily. Forces tight P&L discipline." },
+            { id: "swing",     label: "Swing",      icon: "📈", desc: "Multi-day holds. Positions labelled by how long you've held." },
+          ] as { id: CompetitionStyle; label: string; icon: string; desc: string }[]).map((s) => (
+            <button
+              key={s.id}
+              onClick={() => setStyle(s.id)}
+              className="py-3 rounded-xl text-sm font-medium border transition-all flex flex-col items-center gap-1"
+              style={{
+                background: style === s.id ? "rgba(125,211,176,0.1)" : "rgba(255,255,255,0.03)",
+                borderColor: style === s.id ? "rgba(125,211,176,0.4)" : "rgba(255,255,255,0.07)",
+                color: style === s.id ? "#7dd3b0" : "rgba(232,234,240,0.5)",
+              }}
+            >
+              <span className="text-lg">{s.icon}</span>
+              <span>{s.label}</span>
+            </button>
+          ))}
+        </div>
+        {style === "day_trade" && (
+          <div className="rounded-xl border border-[rgba(248,113,113,0.2)] bg-[rgba(248,113,113,0.05)] p-3 text-[11px] text-[rgba(232,234,240,0.6)] leading-relaxed">
+            ⚡ <strong className="text-[#f87171]">Day Trade rules:</strong> All positions auto-close at 3:58pm ET. Competition locks to 1 day. No overnight holds — your entire P&L is settled by close.
+          </div>
+        )}
+        {style === "swing" && (
+          <div className="rounded-xl border border-[rgba(96,165,250,0.2)] bg-[rgba(96,165,250,0.05)] p-3 text-[11px] text-[rgba(232,234,240,0.6)] leading-relaxed">
+            📈 <strong className="text-[#60a5fa]">Swing rules:</strong> Hold positions across multiple days. Each holding shows how long you've owned it. Reward patience.
+          </div>
+        )}
       </div>
 
       {/* Mode */}
@@ -214,8 +254,8 @@ export default function CompetitionSetup({ userId, onCreated }: CompetitionSetup
         )}
       </div>
 
-      {/* Duration */}
-      <div>
+      {/* Duration — hidden for day_trade (always 1d) */}
+      <div style={{ display: style === "day_trade" ? "none" : undefined }}>
         <label className="block text-[10px] font-semibold text-[rgba(232,234,240,0.55)] uppercase tracking-widest mb-2">
           Duration
         </label>

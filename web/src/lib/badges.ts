@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { awardMW, badgeMWReward } from "@/lib/market-wealth";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
@@ -97,11 +98,16 @@ export async function checkAndAwardBadges(
     .eq("user_id", userId);
   const has = new Set((existing ?? []).map((b: { badge_type: string }) => b.badge_type));
 
-  // Helper
+  // Helper: award badge + MW reward
   async function grant(type: BadgeType, meta?: Record<string, unknown>) {
     if (has.has(type)) return;
     const ok = await awardBadge(db, userId, type, meta);
-    if (ok) { awarded.push(type); has.add(type); }
+    if (ok) {
+      awarded.push(type);
+      has.add(type);
+      const mw = badgeMWReward(type);
+      if (mw > 0) await awardMW(db, userId, mw, `badge_${type}`, type);
+    }
   }
 
   // ── first_trade ──────────────────────────────────────────────────────────

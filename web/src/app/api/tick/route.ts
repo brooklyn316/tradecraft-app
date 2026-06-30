@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { getTodaysChallenge } from "@/app/api/daily-challenge/route";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
@@ -566,6 +567,125 @@ async function processIPOs(db: DB): Promise<string[]> {
   return listed;
 }
 
+// ── Process daily challenges ─────────────────────────────────────────────────
+async function processDailyChallenges(db: DB, prices: StockPrice[]): Promise<number> {
+  const challenge = await getTodaysChallenge(db);
+  if (!challenge) return 0;
+
+  const today = new Date().toISOString().split("T")[0];
+  const todayStart = `${today}T00:00:00Z`;
+  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]));
+
+  // Get all human participants in active competitions not yet completed today's challenge
+  const { data: allParticipants } = await db
+    .from("competition_participants")
+    .select("id, user_id, cash_balance, competition_id")
+    .eq("is_bot", false)
+    .not("user_id", "is", null);
+
+  if (!allParticipants?.length) return 0;
+
+  // Which participants already completed this challenge?
+  const { data: completions } = await db
+    .from("daily_challenge_completions")
+    .select("participant_id")
+    .eq("challenge_id", challenge.id);
+  const alreadyDone = new Set((completions ?? []).map(c => c.participant_id));
+
+  let rewarded = 0;
+
+  for (const p of allParticipants) {
+    if (alreadyDone.has(p.id)) continue;
+
+    let progress = 0;
+
+    switch (challenge.challenge_type) {
+      case "trade_count": {
+        const { count } = await db.from("trades")
+          .select("id", { count: "exact", head: true })
+          .eq("participant_id", p.id)
+          .gte("executed_at", todayStart);
+        progress = count ?? 0;
+        break;
+      }
+      case "big_single_trade": {
+        const { data } = await db.from("trades")
+          .select("total")
+          .eq("participant_id", p.id)
+          .eq("action", "buy")
+          .gte("executed_at", todayStart)
+          .order("total", { ascending: false })
+          .limit(1);
+        progress = data?.[0]?.total ?? 0;
+        break;
+      }
+      case "diversify": {
+        const { count } = await db.from("holdings")
+          .select("id", { count: "exact", head: true })
+          .eq("participant_id", p.id);
+        progress = count ?? 0;
+        break;
+      }
+      case "portfolio_gain": {
+        const { data: comp } = await db.from("competitions")
+          .select("starting_cash").eq("id", p.competition_id).single();
+        const startingCash = comp?.starting_cash ?? 10000;
+        const { data: holdings } = await db.from("holdings")
+          .select("symbol, shares").eq("participant_id", p.id);
+        const holdVal = (holdings ?? []).reduce((s, h) => {
+          const sp = priceMap[h.symbol];
+          return s + h.shares * (sp?.price ?? 0);
+        }, 0);
+        progress = ((p.cash_balance + holdVal - startingCash) / startingCash) * 100;
+        break;
+      }
+      case "buy_volume": {
+        const { data } = await db.from("trades")
+          .select("total")
+          .eq("participant_id", p.id)
+          .eq("action", "buy")
+          .gte("executed_at", todayStart);
+        progress = (data ?? []).reduce((s: number, t: { total: number }) => s + t.total, 0);
+        break;
+      }
+      case "short_sell": {
+        const { count } = await db.from("short_positions")
+          .select("id", { count: "exact", head: true })
+          .eq("participant_id", p.id)
+          .gte("created_at", todayStart);
+        progress = count ?? 0;
+        break;
+      }
+      case "options_trade": {
+        const { count } = await db.from("option_positions")
+          .select("id", { count: "exact", head: true })
+          .eq("participant_id", p.id)
+          .gte("purchased_at", todayStart);
+        progress = count ?? 0;
+        break;
+      }
+    }
+
+    if (progress >= challenge.target_value) {
+      // Credit reward
+      await db.from("competition_participants")
+        .update({ cash_balance: p.cash_balance + challenge.reward_cash })
+        .eq("id", p.id);
+
+      await db.from("daily_challenge_completions").insert({
+        challenge_id:   challenge.id,
+        user_id:        p.user_id,
+        participant_id: p.id,
+        reward_granted: challenge.reward_cash,
+      });
+
+      rewarded++;
+    }
+  }
+
+  return rewarded;
+}
+
 // ── Settle expired options ───────────────────────────────────────────────────
 async function processOptionsExpiry(db: DB, prices: StockPrice[]): Promise<{ settled: number; totalPayout: number }> {
   const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]));
@@ -671,6 +791,9 @@ export async function GET(req: NextRequest) {
   // Settle expired options
   const { settled: optionsSettled, totalPayout: optionsPayout } = await processOptionsExpiry(db, stockPrices);
 
+  // Process daily challenges
+  const challengesRewarded = await processDailyChallenges(db, stockPrices);
+
   // Advance bracket rounds
   const bracketsAdvanced = await processBrackets(db);
 
@@ -728,5 +851,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, bracketsAdvanced, optionsSettled, optionsPayout, ended, competitions: competitions.length });
+  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, bracketsAdvanced, optionsSettled, optionsPayout, challengesRewarded, ended, competitions: competitions.length });
 }

@@ -32,8 +32,9 @@ import DayTradingHUD    from "@/components/DayTradingHUD";
 import PredictionBets  from "@/components/PredictionBets";
 import BracketView     from "@/components/BracketView";
 import OptionsPanel    from "@/components/OptionsPanel";
+import DailyChallenge  from "@/components/DailyChallenge";
 
-type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo";
+type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo" | "challenge";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options";
 
 interface ParticipantSnapshot {
@@ -509,6 +510,7 @@ export default function DashboardPage() {
               ["alerts",      "🔔 ALERTS"],
               ["competition", "COMPETITION"],
               ["ipo",         "🚀 IPO"],
+              ["challenge",   "🏆 DAILY"],
               ["activity",    "⚡ ACTIVITY"],
               ["news",        "📰 NEWS"],
               ["sectors",     "SECTORS"],
@@ -601,6 +603,13 @@ export default function DashboardPage() {
                   setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
                   setRightTab("trade");
                 }}
+              />
+            )}
+
+            {bottomTab === "challenge" && participant && competition && (
+              <DailyChallenge
+                participantId={participant.id}
+                startingCash={competition.starting_cash}
               />
             )}
 

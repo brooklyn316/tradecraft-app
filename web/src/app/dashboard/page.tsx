@@ -35,6 +35,7 @@ import OptionsPanel    from "@/components/OptionsPanel";
 import DailyChallenge  from "@/components/DailyChallenge";
 import StreakBadges       from "@/components/StreakBadges";
 import GlobalLeaderboard  from "@/components/GlobalLeaderboard";
+import SectorRotation     from "@/components/SectorRotation";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo" | "challenge" | "global";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options";
@@ -699,37 +700,14 @@ export default function DashboardPage() {
             )}
 
             {bottomTab === "sectors" && (
-              <div style={{ padding:"8px 0" }}>
-                {[
-                  { label:"Technology",  sym:"QQQ"  },
-                  { label:"S&P 500",     sym:"SPY"  },
-                  { label:"Financials",  sym:"BAC"  },
-                  { label:"Healthcare",  sym:"UNH"  },
-                  { label:"Consumer",    sym:"AMZN" },
-                  { label:"Energy",      sym:"XOM"  },
-                  { label:"Industrials", sym:"BA"   },
-                  { label:"Real Estate", sym:"COST" },
-                ].map(({ label, sym }) => {
-                  const s = stocks.find(x => x.symbol === sym);
-                  if (!s) return null;
-                  const up = (s.change_percent ?? 0) >= 0;
-                  return (
-                    <div key={sym} onClick={() => setSelectedStock(s)}
-                      style={{ display:"flex", alignItems:"center", padding:"8px 14px", borderBottom:"1px solid rgba(255,255,255,0.04)", cursor:"pointer", gap:8 }}>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:11, fontWeight:700, color:"rgba(232,234,240,0.85)" }}>{label}</div>
-                        <div style={{ fontSize:10, color:"rgba(232,234,240,0.4)" }}>{sym}</div>
-                      </div>
-                      <div style={{ textAlign:"right" }}>
-                        <div style={{ fontSize:11, fontFamily:"monospace", fontWeight:600, color:"rgba(232,234,240,0.7)" }}>${s.price.toFixed(2)}</div>
-                        <div style={{ fontSize:11, fontWeight:700, color: up ? "#4ade80" : "#f87171" }}>
-                          {up ? "+" : ""}{(s.change_percent ?? 0).toFixed(2)}%
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <SectorRotation
+                participantId={participantId}
+                stocks={stocks}
+                onSelectSymbol={(sym) => {
+                  setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                  setRightTab("trade");
+                }}
+              />
             )}
 
           </div>

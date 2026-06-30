@@ -149,3 +149,27 @@ export type WatchlistItem = {
   added_at: string;
   price?: StockPrice;
 };
+
+export type OptionType = "call" | "put";
+
+export type OptionPosition = {
+  id: string;
+  participant_id: string;
+  competition_id: string;
+  symbol: string;
+  company_name: string | null;
+  option_type: OptionType;
+  strike: number;
+  expiry: string;          // ISO date e.g. "2026-07-01"
+  contracts: number;       // 1 contract = 100 shares
+  premium_paid: number;    // per share
+  purchased_at: string;
+  settled: boolean;
+  payout: number | null;
+  pnl: number | null;
+  created_at: string;
+  // derived (client-side)
+  current_premium?: number;
+  current_value?: number;
+  unrealised_pnl?: number;
+};

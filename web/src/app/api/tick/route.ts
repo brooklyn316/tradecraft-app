@@ -566,6 +566,59 @@ async function processIPOs(db: DB): Promise<string[]> {
   return listed;
 }
 
+// ── Settle expired options ───────────────────────────────────────────────────
+async function processOptionsExpiry(db: DB, prices: StockPrice[]): Promise<{ settled: number; totalPayout: number }> {
+  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]));
+  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+
+  const { data: duePositions } = await db
+    .from("option_positions")
+    .select("*")
+    .eq("settled", false)
+    .lte("expiry", today);
+
+  if (!duePositions?.length) return { settled: 0, totalPayout: 0 };
+
+  let settled = 0;
+  let totalPayout = 0;
+
+  for (const pos of duePositions) {
+    const sp = priceMap[pos.symbol];
+    const exitPrice = sp?.price ?? 0;
+
+    // Intrinsic value at expiry
+    const intrinsic = pos.option_type === "call"
+      ? Math.max(0, exitPrice - pos.strike)
+      : Math.max(0, pos.strike - exitPrice);
+
+    const payout    = Math.round(intrinsic * 100 /* CONTRACT_SIZE */ * pos.contracts * 100) / 100;
+    const costBasis = Math.round(pos.premium_paid * 100 * pos.contracts * 100) / 100;
+    const pnl       = Math.round((payout - costBasis) * 100) / 100;
+
+    // Mark settled
+    await db.from("option_positions").update({ settled: true, payout, pnl }).eq("id", pos.id);
+
+    // Credit payout if in-the-money
+    if (payout > 0) {
+      const { data: p } = await db
+        .from("competition_participants")
+        .select("cash_balance")
+        .eq("id", pos.participant_id)
+        .single();
+      if (p) {
+        await db.from("competition_participants")
+          .update({ cash_balance: p.cash_balance + payout })
+          .eq("id", pos.participant_id);
+        totalPayout += payout;
+      }
+    }
+
+    settled++;
+  }
+
+  return { settled, totalPayout };
+}
+
 // ── End expired competitions ─────────────────────────────────────────────────
 async function endExpiredCompetitions(db: DB): Promise<number> {
   const today = new Date().toISOString().split("T")[0];
@@ -614,6 +667,9 @@ export async function GET(req: NextRequest) {
 
   // Process IPOs (global — not per competition)
   const iposListed = await processIPOs(db);
+
+  // Settle expired options
+  const { settled: optionsSettled, totalPayout: optionsPayout } = await processOptionsExpiry(db, stockPrices);
 
   // Advance bracket rounds
   const bracketsAdvanced = await processBrackets(db);
@@ -672,5 +728,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, bracketsAdvanced, ended, competitions: competitions.length });
+  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, bracketsAdvanced, optionsSettled, optionsPayout, ended, competitions: competitions.length });
 }

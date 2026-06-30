@@ -26,9 +26,10 @@ import PriceAlerts      from "@/components/PriceAlerts";
 import CompetitionSetup from "@/components/CompetitionSetup";
 import StockPredict     from "@/components/StockPredict";
 import MarketEvents     from "@/components/MarketEvents";
+import MarketSignals    from "@/components/MarketSignals";
 
 type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors";
-type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation";
+type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks";
 
 interface ParticipantSnapshot {
   id: string;
@@ -681,6 +682,7 @@ export default function DashboardPage() {
               ["trade",     "Trade"],
               ["portfolio", "Portfolio"],
               ["history",   "History"],
+              ["picks",     "📈 Picks"],
               ["ai",        "✦ AI"],
               ["orders",     "Orders"],
               ["automation", "⚡ Auto"],
@@ -734,6 +736,18 @@ export default function DashboardPage() {
 
             {rightTab === "history" && participantId && (
               <TradeHistory participantId={participantId} />
+            )}
+
+            {rightTab === "picks" && participant && (
+              <MarketSignals
+                stocks={stocks}
+                holdings={holdings}
+                cashBalance={participant.cash_balance}
+                onSelectSymbol={(sym) => {
+                  setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                  setRightTab("trade");
+                }}
+              />
             )}
 
             {rightTab === "ai" && participant && (

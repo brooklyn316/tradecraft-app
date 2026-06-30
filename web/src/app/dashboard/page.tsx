@@ -33,9 +33,10 @@ import PredictionBets  from "@/components/PredictionBets";
 import BracketView     from "@/components/BracketView";
 import OptionsPanel    from "@/components/OptionsPanel";
 import DailyChallenge  from "@/components/DailyChallenge";
-import StreakBadges    from "@/components/StreakBadges";
+import StreakBadges       from "@/components/StreakBadges";
+import GlobalLeaderboard  from "@/components/GlobalLeaderboard";
 
-type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo" | "challenge";
+type BottomTab = "markets" | "trending" | "watchlist" | "alerts" | "competition" | "activity" | "news" | "sectors" | "ipo" | "challenge" | "global";
 type RightTab  = "trade" | "portfolio" | "history" | "ai" | "orders" | "automation" | "picks" | "predict" | "options";
 
 interface ParticipantSnapshot {
@@ -512,6 +513,7 @@ export default function DashboardPage() {
               ["competition", "COMPETITION"],
               ["ipo",         "🚀 IPO"],
               ["challenge",   "🏆 DAILY"],
+              ["global",      "🌍 GLOBAL"],
               ["activity",    "⚡ ACTIVITY"],
               ["news",        "📰 NEWS"],
               ["sectors",     "SECTORS"],
@@ -620,6 +622,10 @@ export default function DashboardPage() {
                   />
                 </div>
               </>
+            )}
+
+            {bottomTab === "global" && (
+              <GlobalLeaderboard currentUserId={userId} />
             )}
 
             {bottomTab === "activity" && (() => {

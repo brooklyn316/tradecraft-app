@@ -126,6 +126,18 @@ export type LeaderboardEntry = {
   rank: number;
 };
 
+export type ShortPosition = {
+  id: string;
+  participant_id: string;
+  symbol: string;
+  company_name: string | null;
+  shares: number;
+  short_price: number;
+  proceeds: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type WatchlistItem = {
   id: string;
   user_id: string;

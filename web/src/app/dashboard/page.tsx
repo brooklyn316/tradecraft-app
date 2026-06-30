@@ -7,7 +7,7 @@ import {
 } from "@/lib/stockApi";
 import type {
   StockPrice, CompetitionParticipant, Competition,
-  Holding, Trade, LeaderboardEntry,
+  Holding, Trade, LeaderboardEntry, ShortPosition,
 } from "@/types";
 
 import TickerBar        from "@/components/TickerBar";
@@ -61,6 +61,7 @@ export default function DashboardPage() {
   const [activeIdx, setActiveIdx]       = useState(0);
   const [stocks, setStocks]             = useState<StockPrice[]>([]);
   const [holdings, setHoldings]         = useState<Holding[]>([]);
+  const [shortPositions, setShortPositions] = useState<ShortPosition[]>([]);
   const [trades, setTrades]             = useState<Trade[]>([]);
   const [leaderboard, setLeaderboard]   = useState<LeaderboardEntry[]>([]);
   const [participantSnapshots, setParticipantSnapshots] = useState<ParticipantSnapshot[]>([]);
@@ -137,6 +138,13 @@ export default function DashboardPage() {
         const [h, t] = await Promise.all([getHoldings(pid), getRecentTrades(pid)]);
         setHoldings(h as Holding[]);
         setTrades(t as Trade[]);
+
+        // Fetch short positions
+        const { data: shorts } = await supabase
+          .from("short_positions")
+          .select("*")
+          .eq("participant_id", pid);
+        setShortPositions((shorts ?? []) as ShortPosition[]);
 
         if (cid) {
           const { data: participants } = await supabase
@@ -272,6 +280,10 @@ export default function DashboardPage() {
 
   const selectedHolding = selectedStock
     ? holdings.find(h => h.symbol === selectedStock.symbol) ?? null
+    : null;
+
+  const selectedShortPosition = selectedStock
+    ? shortPositions.find(s => s.symbol === selectedStock.symbol) ?? null
     : null;
 
   // ── Loading ───────────────────────────────────────────────
@@ -712,6 +724,7 @@ export default function DashboardPage() {
                   stock={selectedStock}
                   participant={participant}
                   holding={selectedHolding}
+                  shortPosition={selectedShortPosition}
                   onTradeComplete={handleTradeComplete}
                 />
               ) : (
@@ -725,6 +738,7 @@ export default function DashboardPage() {
               <Portfolio
                 participant={participant}
                 holdings={holdings}
+                shortPositions={shortPositions}
                 prices={stocks}
                 startingCash={competition?.starting_cash ?? 10000}
                 onSelectSymbol={(sym) => {

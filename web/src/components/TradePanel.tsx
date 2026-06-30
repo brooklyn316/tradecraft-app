@@ -1,39 +1,59 @@
 "use client";
 
 import { useState } from "react";
-import type { StockPrice, CompetitionParticipant, Holding } from "@/types";
+import type { StockPrice, CompetitionParticipant, Holding, ShortPosition } from "@/types";
 import { executeTrade, formatCurrency } from "@/lib/stockApi";
 
 interface TradePanelProps {
   stock: StockPrice;
   participant: CompetitionParticipant;
   holding: Holding | null;
+  shortPosition: ShortPosition | null;
   onTradeComplete: () => void;
 }
 
 type Mode = "market" | "limit";
 
-export default function TradePanel({ stock, participant, holding, onTradeComplete }: TradePanelProps) {
+export default function TradePanel({ stock, participant, holding, shortPosition, onTradeComplete }: TradePanelProps) {
   const [mode, setMode] = useState<Mode>("market");
-  const [action, setAction] = useState<"buy" | "sell">("buy");
+  const [action, setAction] = useState<"buy" | "sell" | "short" | "cover">("buy");
   const [sharesInput, setSharesInput] = useState("");
   const [limitPriceInput, setLimitPriceInput] = useState(stock.price.toFixed(2));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const isShortAction = action === "short" || action === "cover";
   const shares = parseFloat(sharesInput) || 0;
   const limitPrice = parseFloat(limitPriceInput) || stock.price;
   const price = mode === "market" ? stock.price : limitPrice;
   const total = shares * price;
 
-  const canAfford  = total <= participant.cash_balance;
-  const hasShares  = holding && holding.shares >= shares;
-  const isValid    = shares > 0 && (action === "buy" ? canAfford : !!hasShares) && (mode === "limit" ? limitPrice > 0 : true);
-  const maxBuyShares  = Math.floor(participant.cash_balance / price);
-  const maxSellShares = holding ? Math.floor(holding.shares) : 0;
-  const isPositive    = (stock.change_percent ?? 0) >= 0;
-  const cashPercent   = Math.min(100, (total / participant.cash_balance) * 100);
+  const canAfford      = total <= participant.cash_balance;
+  const hasShares      = holding && holding.shares >= shares;
+  const hasShortShares = shortPosition && shortPosition.shares >= shares;
+  const isValid =
+    shares > 0 &&
+    (action === "buy"    ? canAfford :
+     action === "sell"   ? !!hasShares :
+     action === "short"  ? canAfford :  // needs collateral
+     action === "cover"  ? !!hasShortShares : false) &&
+    (mode === "limit" ? limitPrice > 0 : true);
+
+  const maxBuyShares   = Math.floor(participant.cash_balance / price);
+  const maxSellShares  = holding ? Math.floor(holding.shares) : 0;
+  const maxShortShares = Math.floor(participant.cash_balance / price);
+  const maxCoverShares = shortPosition ? Math.floor(shortPosition.shares) : 0;
+  const isPositive     = (stock.change_percent ?? 0) >= 0;
+  const cashPercent    = Math.min(100, (total / participant.cash_balance) * 100);
+
+  // Short P&L preview
+  const shortPnl = shortPosition
+    ? (shortPosition.short_price - stock.price) * shortPosition.shares
+    : 0;
+  const shortPnlPct = shortPosition
+    ? ((shortPosition.short_price - stock.price) / shortPosition.short_price) * 100
+    : 0;
 
   function reset() { setSharesInput(""); setError(null); setSuccess(null); }
 
@@ -41,14 +61,36 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
     if (!isValid) return;
     setLoading(true); setError(null); setSuccess(null);
     try {
-      await executeTrade({
-        participantId: participant.id, symbol: stock.symbol,
-        companyName: stock.company_name ?? stock.symbol,
-        action, shares, price: stock.price,
-        currentCashBalance: participant.cash_balance,
-        currentShares: holding?.shares ?? 0,
-      });
-      setSuccess(`${action === "buy" ? "Bought" : "Sold"} ${shares} × ${stock.symbol} @ $${stock.price.toFixed(2)}`);
+      if (action === "short" || action === "cover") {
+        const res = await fetch("/api/short", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            participantId: participant.id,
+            symbol: stock.symbol,
+            companyName: stock.company_name ?? stock.symbol,
+            shares,
+            currentPrice: stock.price,
+            currentCashBalance: participant.cash_balance,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error ?? "Request failed");
+        const pnlStr = action === "cover" && data.pnl !== undefined
+          ? ` · P&L: ${data.pnl >= 0 ? "+" : ""}$${data.pnl.toFixed(2)}`
+          : "";
+        setSuccess(`${action === "short" ? "Shorted" : "Covered"} ${shares} × ${stock.symbol} @ $${stock.price.toFixed(2)}${pnlStr}`);
+      } else {
+        await executeTrade({
+          participantId: participant.id, symbol: stock.symbol,
+          companyName: stock.company_name ?? stock.symbol,
+          action, shares, price: stock.price,
+          currentCashBalance: participant.cash_balance,
+          currentShares: holding?.shares ?? 0,
+        });
+        setSuccess(`${action === "buy" ? "Bought" : "Sold"} ${shares} × ${stock.symbol} @ $${stock.price.toFixed(2)}`);
+      }
       setSharesInput(""); onTradeComplete();
     } catch (err) { setError((err as Error).message); }
     finally { setLoading(false); }
@@ -78,8 +120,10 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
   }
 
   function setPercent(pct: number) {
-    if (action === "buy") setSharesInput(Math.floor((participant.cash_balance * pct) / price).toString());
-    else setSharesInput(Math.floor(maxSellShares * pct).toString());
+    if (action === "buy")   setSharesInput(Math.floor((participant.cash_balance * pct) / price).toString());
+    else if (action === "sell")  setSharesInput(Math.floor(maxSellShares * pct).toString());
+    else if (action === "short") setSharesInput(Math.floor((participant.cash_balance * pct) / price).toString());
+    else if (action === "cover") setSharesInput(Math.floor(maxCoverShares * pct).toString());
   }
 
   return (
@@ -114,11 +158,27 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
         )}
       </div>
 
-      {/* Holding badge */}
+      {/* Long holding badge */}
       {holding && (
         <div style={{ margin: "12px 16px 0", padding: "10px 14px", background: "rgba(125,211,176,0.07)", border: "1px solid rgba(125,211,176,0.18)", borderRadius: 10, display: "flex", justifyContent: "space-between" }}>
           <span style={{ fontSize: 13, color: "#7dd3b0", fontWeight: 600 }}>You own {holding.shares.toFixed(0)} shares</span>
           <span style={{ fontSize: 12, fontFamily: "monospace", color: "rgba(232,234,240,0.4)" }}>avg ${holding.avg_cost.toFixed(2)}</span>
+        </div>
+      )}
+
+      {/* Short position badge */}
+      {shortPosition && (
+        <div style={{ margin: "12px 16px 0", padding: "10px 14px", background: "rgba(248,113,113,0.07)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 10 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span style={{ fontSize: 13, color: "#f87171", fontWeight: 700 }}>SHORT {shortPosition.shares.toFixed(0)} shares</span>
+            <span style={{ fontSize: 12, fontFamily: "monospace", color: "rgba(232,234,240,0.4)" }}>@ ${shortPosition.short_price.toFixed(2)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 11, color: "rgba(232,234,240,0.45)" }}>Unrealised P&L</span>
+            <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 700, color: shortPnl >= 0 ? "#4ade80" : "#f87171" }}>
+              {shortPnl >= 0 ? "+" : ""}${shortPnl.toFixed(2)} ({shortPnlPct >= 0 ? "+" : ""}{shortPnlPct.toFixed(1)}%)
+            </span>
+          </div>
         </div>
       )}
 
@@ -143,18 +203,35 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
           </div>
         )}
 
-        {/* Buy / Sell toggle */}
-        <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4, border: "1px solid rgba(255,255,255,0.07)" }}>
-          {(["buy", "sell"] as const).map(a => (
-            <button key={a} onClick={() => { setAction(a); reset(); }}
-              style={{ flex: 1, padding: "10px 0", borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: "pointer", border: "none", transition: "all 0.15s",
-                background: action === a ? (a === "buy" ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)") : "transparent",
-                color: action === a ? (a === "buy" ? "#4ade80" : "#f87171") : "rgba(232,234,240,0.52)",
-                boxShadow: action === a ? `inset 0 0 0 1px ${a === "buy" ? "rgba(74,222,128,0.25)" : "rgba(248,113,113,0.25)"}` : "none" }}>
-              {a === "buy" ? "Buy" : "Sell"}
+        {/* Buy / Sell / Short / Cover toggle */}
+        <div style={{ display: "flex", background: "rgba(255,255,255,0.04)", borderRadius: 12, padding: 4, border: "1px solid rgba(255,255,255,0.07)", gap: 2 }}>
+          {([
+            { key: "buy",   label: "Buy",   activeColor: "#4ade80", activeBg: "rgba(74,222,128,0.12)",   activeBorder: "rgba(74,222,128,0.25)" },
+            { key: "sell",  label: "Sell",  activeColor: "#f87171", activeBg: "rgba(248,113,113,0.12)",  activeBorder: "rgba(248,113,113,0.25)" },
+            { key: "short", label: "Short", activeColor: "#f97316", activeBg: "rgba(249,115,22,0.12)",   activeBorder: "rgba(249,115,22,0.25)" },
+            { key: "cover", label: "Cover", activeColor: "#a78bfa", activeBg: "rgba(167,139,250,0.12)",  activeBorder: "rgba(167,139,250,0.25)" },
+          ] as const).map(({ key, label, activeColor, activeBg, activeBorder }) => (
+            <button key={key} onClick={() => { setAction(key); reset(); }}
+              style={{ flex: 1, padding: "9px 0", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "none", transition: "all 0.15s",
+                background: action === key ? activeBg : "transparent",
+                color: action === key ? activeColor : "rgba(232,234,240,0.4)",
+                boxShadow: action === key ? `inset 0 0 0 1px ${activeBorder}` : "none" }}>
+              {label}
             </button>
           ))}
         </div>
+
+        {/* Short mode explainer */}
+        {action === "short" && (
+          <div style={{ padding: "8px 12px", background: "rgba(249,115,22,0.06)", border: "1px solid rgba(249,115,22,0.15)", borderRadius: 9, fontSize: 11, color: "rgba(249,115,22,0.8)", lineHeight: 1.5 }}>
+            Borrow &amp; sell shares now. Profit if the price falls. Collateral = full position value, locked from your cash.
+          </div>
+        )}
+        {action === "cover" && !shortPosition && (
+          <div style={{ padding: "8px 12px", background: "rgba(167,139,250,0.06)", border: "1px solid rgba(167,139,250,0.15)", borderRadius: 9, fontSize: 11, color: "rgba(167,139,250,0.7)", lineHeight: 1.5 }}>
+            No open short position on {stock.symbol}.
+          </div>
+        )}
 
         {/* Limit price input */}
         {mode === "limit" && (
@@ -188,7 +265,12 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
         <div>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: "rgba(232,234,240,0.4)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Shares</label>
-            <span style={{ fontSize: 12, color: "rgba(232,234,240,0.52)", fontFamily: "monospace" }}>Max: {action === "buy" ? maxBuyShares : maxSellShares}</span>
+            <span style={{ fontSize: 12, color: "rgba(232,234,240,0.52)", fontFamily: "monospace" }}>Max: {
+              action === "buy" ? maxBuyShares :
+              action === "sell" ? maxSellShares :
+              action === "short" ? maxShortShares :
+              maxCoverShares
+            }</span>
           </div>
           <input type="number" value={sharesInput} onChange={e => { setSharesInput(e.target.value); setError(null); setSuccess(null); }}
             placeholder="0" min="0" step="1"
@@ -239,6 +321,16 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
               {maxSellShares > 0 ? `${maxSellShares} shares available` : "No shares to sell"}
             </div>
           )}
+          {action === "short" && shares > 0 && (
+            <div style={{ padding: "0 16px 14px", fontSize: 11, color: "rgba(249,115,22,0.7)", fontFamily: "monospace" }}>
+              Collateral locked: {formatCurrency(total)} · Profit if price drops
+            </div>
+          )}
+          {action === "cover" && shortPosition && (
+            <div style={{ padding: "0 16px 14px", fontSize: 11, color: "rgba(167,139,250,0.7)", fontFamily: "monospace" }}>
+              {maxCoverShares} shares to cover · Est. P&L: {shortPnl >= 0 ? "+" : ""}${((shortPosition.short_price - stock.price) * shares).toFixed(2)}
+            </div>
+          )}
         </div>
 
         {error   && <div style={{ fontSize: 13, color: "#f87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", borderRadius: 10, padding: "12px 14px" }}>⚠ {error}</div>}
@@ -246,18 +338,34 @@ export default function TradePanel({ stock, participant, holding, onTradeComplet
 
         <button
           onClick={mode === "market" ? handleMarketTrade : handleLimitOrder}
-          disabled={!isValid || loading}
+          disabled={!isValid || loading || (action === "cover" && !shortPosition)}
           style={{ width: "100%", padding: "14px 0", borderRadius: 12, fontSize: 15, fontWeight: 700,
             cursor: isValid && !loading ? "pointer" : "not-allowed", opacity: isValid && !loading ? 1 : 0.35,
             border: "none", marginTop: "auto",
-            background: mode === "limit"
-              ? "rgba(251,191,36,0.1)"
-              : action === "buy" ? "rgba(74,222,128,0.12)" : "rgba(248,113,113,0.12)",
-            color: mode === "limit" ? "#fbbf24" : action === "buy" ? "#4ade80" : "#f87171",
-            boxShadow: `inset 0 0 0 1px ${mode === "limit" ? "rgba(251,191,36,0.3)" : action === "buy" ? "rgba(74,222,128,0.3)" : "rgba(248,113,113,0.3)"}` }}>
+            background: mode === "limit" ? "rgba(251,191,36,0.1)" :
+              action === "buy"   ? "rgba(74,222,128,0.12)"  :
+              action === "sell"  ? "rgba(248,113,113,0.12)" :
+              action === "short" ? "rgba(249,115,22,0.12)"  :
+              "rgba(167,139,250,0.12)",
+            color: mode === "limit" ? "#fbbf24" :
+              action === "buy"   ? "#4ade80"  :
+              action === "sell"  ? "#f87171"  :
+              action === "short" ? "#f97316"  :
+              "#a78bfa",
+            boxShadow: `inset 0 0 0 1px ${
+              mode === "limit" ? "rgba(251,191,36,0.3)" :
+              action === "buy"   ? "rgba(74,222,128,0.3)"  :
+              action === "sell"  ? "rgba(248,113,113,0.3)" :
+              action === "short" ? "rgba(249,115,22,0.3)"  :
+              "rgba(167,139,250,0.3)"
+            }` }}>
           {loading ? "Processing…" : mode === "limit"
             ? `Place Limit Order · ${shares > 0 ? `${shares} × $${limitPrice.toFixed(2)}` : stock.symbol}`
-            : `${action === "buy" ? "Buy" : "Sell"} ${shares > 0 ? `${shares} × ` : ""}${stock.symbol}${shares > 0 ? ` · ${formatCurrency(total)}` : ""}`}
+            : action === "short"
+              ? `Short ${shares > 0 ? `${shares} × ` : ""}${stock.symbol}${shares > 0 ? ` · lock ${formatCurrency(total)}` : ""}`
+              : action === "cover"
+              ? `Cover ${shares > 0 ? `${shares} × ` : ""}${stock.symbol}${shares > 0 ? ` · ${formatCurrency(total)}` : ""}`
+              : `${action === "buy" ? "Buy" : "Sell"} ${shares > 0 ? `${shares} × ` : ""}${stock.symbol}${shares > 0 ? ` · ${formatCurrency(total)}` : ""}`}
         </button>
       </div>
     </div>

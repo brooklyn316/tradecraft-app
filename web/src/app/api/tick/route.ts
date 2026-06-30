@@ -375,6 +375,71 @@ async function processMargin(db: DB, compId: string, prices: StockPrice[]): Prom
   return { interest: interestCharged, calls: marginCalls };
 }
 
+// ── Resolve prediction bets ──────────────────────────────────────────────────
+const BET_WIN_MULTIPLIER  = 1.85;
+const BET_PUSH_THRESHOLD  = 0.001; // <0.1% move = push
+
+async function processPredictionBets(db: DB, prices: StockPrice[]): Promise<{ wins: number; losses: number; pushes: number }> {
+  const priceMap = Object.fromEntries(prices.map(p => [p.symbol, p]));
+
+  const { data: dueBets } = await db
+    .from("prediction_bets")
+    .select("*")
+    .eq("resolved", false)
+    .lte("resolve_at", new Date().toISOString());
+
+  if (!dueBets?.length) return { wins: 0, losses: 0, pushes: 0 };
+
+  let wins = 0, losses = 0, pushes = 0;
+
+  for (const bet of dueBets) {
+    const sp = priceMap[bet.symbol];
+    const exitPrice = sp?.price ?? bet.entry_price;
+    const changePct = (exitPrice - bet.entry_price) / bet.entry_price;
+
+    let outcome: "win" | "loss" | "push";
+    let payout = 0;
+
+    if (Math.abs(changePct) < BET_PUSH_THRESHOLD) {
+      outcome = "push";
+      payout  = bet.stake;
+      pushes++;
+    } else if (
+      (bet.direction === "up"   && changePct > 0) ||
+      (bet.direction === "down" && changePct < 0)
+    ) {
+      outcome = "win";
+      payout  = Math.round(bet.stake * BET_WIN_MULTIPLIER * 100) / 100;
+      wins++;
+    } else {
+      outcome = "loss";
+      payout  = 0;
+      losses++;
+    }
+
+    // Mark resolved
+    await db.from("prediction_bets").update({
+      resolved: true, outcome, exit_price: exitPrice, payout,
+    }).eq("id", bet.id);
+
+    // Credit payout to participant
+    if (payout > 0) {
+      const { data: p } = await db
+        .from("competition_participants")
+        .select("cash_balance")
+        .eq("id", bet.participant_id)
+        .single();
+      if (p) {
+        await db.from("competition_participants")
+          .update({ cash_balance: p.cash_balance + payout })
+          .eq("id", bet.participant_id);
+      }
+    }
+  }
+
+  return { wins, losses, pushes };
+}
+
 // ── Day trading EOD force-close (3:58pm ET) ─────────────────────────────────
 function isEODWindow(): boolean {
   const now = new Date();
@@ -525,6 +590,9 @@ export async function GET(req: NextRequest) {
   // Process IPOs (global — not per competition)
   const iposListed = await processIPOs(db);
 
+  // Resolve prediction bets
+  const { wins: betWins, losses: betLosses, pushes: betPushes } = await processPredictionBets(db, stockPrices);
+
   // Day trade EOD force-close
   const eodClosed = await processEODClose(db, stockPrices);
 
@@ -576,5 +644,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, ended, competitions: competitions.length });
+  return NextResponse.json({ success: true, pricesRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, ended, competitions: competitions.length });
 }

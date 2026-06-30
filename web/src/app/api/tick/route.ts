@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { getTodaysChallenge } from "@/app/api/daily-challenge/route";
+import { getTodaysChallenge } from "@/lib/daily-challenge";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;

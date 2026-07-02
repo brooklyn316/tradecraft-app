@@ -447,18 +447,28 @@ export async function loadBotContext(
 
 export function isMarketOpen(): boolean {
   const now = new Date();
-  // Convert to US Eastern Time
-  const etString = now.toLocaleString("en-US", { timeZone: "America/New_York" });
-  const et = new Date(etString);
 
-  const day  = et.getDay();
-  const hour = et.getHours();
-  const min  = et.getMinutes();
+  // Use Intl.DateTimeFormat.formatToParts — reliable in all Node/Vercel runtimes.
+  // The toLocaleString → new Date() pattern is not reliable server-side.
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
 
-  // Weekdays only
-  if (day === 0 || day === 6) return false;
+  const get = (t: string) => parseInt(parts.find(p => p.type === t)?.value ?? "0");
+  const etYear = get("year");
+  const etMonth = get("month") - 1; // 0-indexed
+  const etDay  = get("day");
+  const etHour = get("hour");
+  const etMin  = get("minute");
+
+  // Day of week (0=Sun … 6=Sat) derived from ET date components
+  const dow = new Date(etYear, etMonth, etDay).getDay();
+  if (dow === 0 || dow === 6) return false;
 
   // 9:30 AM – 4:00 PM ET
-  const minutesFromMidnight = hour * 60 + min;
-  return minutesFromMidnight >= 570 && minutesFromMidnight < 960; // 9:30=570, 16:00=960
+  const totalMin = etHour * 60 + etMin;
+  return totalMin >= 570 && totalMin < 960; // 9:30=570, 16:00=960
 }

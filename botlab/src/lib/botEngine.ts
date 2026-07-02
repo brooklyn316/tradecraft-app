@@ -126,7 +126,9 @@ export async function loadHistory(
 
 /** Trigger the price-fetch edge function to refresh a batch of symbols */
 export async function refreshPrices(symbols: string[]): Promise<void> {
-  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/fetch-prices`;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  console.log(`[botEngine] refreshPrices: SUPABASE_URL=${supabaseUrl}`);
+  const url = `${supabaseUrl}/functions/v1/stock-prices`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -137,7 +139,7 @@ export async function refreshPrices(symbols: string[]): Promise<void> {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`fetch-prices edge function error: ${res.status} ${body}`);
+    throw new Error(`stock-prices edge function error: ${res.status} ${body}`);
   }
 }
 
@@ -407,6 +409,7 @@ export async function loadBotContext(
   symbols: string[],
   historyDays = 30
 ): Promise<BotContext> {
+  console.log(`[loadBotContext] loading bot ${botCode} from ${process.env.NEXT_PUBLIC_SUPABASE_URL}`);
   const { data: bot, error: botErr } = await supabase
     .from("bots")
     .select("*")

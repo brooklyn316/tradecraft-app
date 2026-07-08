@@ -528,17 +528,20 @@ export default function DashboardPage() {
           </div>
 
           {/* Bottom tab bar */}
-          <div style={{
-            display: "flex",
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            flexShrink: 0,
-            background: "rgba(255,255,255,0.01)",
-            overflowX: "auto",
-            scrollbarWidth: "none",
-            WebkitOverflowScrolling: "touch",
-            msOverflowStyle: "none",
-          }}>
+          <div
+            style={{
+              display: "flex",
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              flexShrink: 0,
+              background: "rgba(255,255,255,0.01)",
+              overflowX: "auto",
+              scrollbarWidth: "none",
+              WebkitOverflowScrolling: "touch",
+              msOverflowStyle: "none",
+            }}
+            onWheel={(e) => { e.currentTarget.scrollLeft += e.deltaY; }}
+          >
             {([
               ["markets",     "LIVE MARKETS"],
               ["trending",    "TRENDING"],
@@ -579,12 +582,11 @@ export default function DashboardPage() {
                     if (existing) {
                       setSelectedStock(existing);
                     } else {
-                      // Stock not in current list — create a stub so chart can load
                       setSelectedStock({ symbol, company_name: name, price: 0, change_percent: 0, updated_at: new Date().toISOString() } as StockPrice);
                     }
                   }}
                 />
-                <div style={{ flex: 1, overflow: "hidden" }}>
+                <div style={{ flex: 1, minHeight: 0 }}>
                   <StockList
                     stocks={visibleStocks}
                     selectedSymbol={selectedStock?.symbol ?? ""}
@@ -781,14 +783,17 @@ export default function DashboardPage() {
           flexShrink: 0,
         }}>
           {/* Tab bar */}
-          <div style={{
-            display: "flex",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-            flexShrink: 0,
-            background: "rgba(255,255,255,0.01)",
-            overflowX: "auto",
-            scrollbarWidth: "none",
-          }}>
+          <div
+            style={{
+              display: "flex",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              flexShrink: 0,
+              background: "rgba(255,255,255,0.01)",
+              overflowX: "auto",
+              scrollbarWidth: "none",
+            }}
+            onWheel={(e) => { e.currentTarget.scrollLeft += e.deltaY; }}
+          >
             {([
               ["trade",     "Trade"],
               ["portfolio", "Portfolio"],

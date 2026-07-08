@@ -823,11 +823,11 @@ export async function GET(req: NextRequest) {
   const marketOpen = isMarketOpen();
   const db = getAdminClient();
 
-  // Refresh prices — US stocks during NYSE hours, NZX during NZX hours, crypto always
+  // Refresh prices — US stocks during NYSE hours, NZX always (Yahoo returns last-known when closed), crypto always
   const nzxOpen = isNZXOpen();
   const [pricesRefreshed, nzxRefreshed, cryptoRefreshed] = await Promise.all([
-    marketOpen ? refreshPrices(US_SYMBOLS)  : Promise.resolve(false),
-    nzxOpen    ? refreshPrices(NZX_SYMBOLS) : Promise.resolve(false),
+    marketOpen ? refreshPrices(US_SYMBOLS) : Promise.resolve(false),
+    refreshPrices(NZX_SYMBOLS),
     refreshCryptoPrices(db),
   ]);
 
@@ -849,7 +849,7 @@ export async function GET(req: NextRequest) {
   );
   const hasCryptoComps = cryptoCompIds.size > 0;
 
-  if (!marketOpen && !nzxOpen && !hasCryptoComps) {
+  if (!marketOpen && !hasCryptoComps) {
     return NextResponse.json({ message: "Market closed", ended, cryptoRefreshed, nzxRefreshed });
   }
 

@@ -11,7 +11,7 @@ import type {
 } from "@/types";
 
 import TickerBar        from "@/components/TickerBar";
-import MarketStatusBar  from "@/components/MarketStatusBar";
+import MarketStatusBar, { type MarketFilter } from "@/components/MarketStatusBar";
 import StockSearch      from "@/components/StockSearch";
 import Portfolio        from "@/components/Portfolio";
 import StockList        from "@/components/StockList";
@@ -88,6 +88,7 @@ export default function DashboardPage() {
   const [selectedStock, setSelectedStock] = useState<StockPrice | null>(null);
   const [bottomTab, setBottomTab]         = useState<BottomTab>("competition");
   const [rightTab,  setRightTab]          = useState<RightTab>("trade");
+  const [marketFilter, setMarketFilter]   = useState<MarketFilter>("all");
   const [predictStock, setPredictStock]   = useState<{ symbol: string; price: number } | null>(null);
   const [copied, setCopied]               = useState(false);
   const [copyTrade, setCopyTrade]         = useState<{ symbol: string; action: "buy" | "sell"; shares: number } | null>(null);
@@ -344,6 +345,20 @@ export default function DashboardPage() {
   const visibleStocks = isCrypto
     ? stocks.filter(s => CRYPTO_SYMBOLS.includes(s.symbol as typeof CRYPTO_SYMBOLS[number]))
     : stocks;
+
+  // Market filter: applied only to the LIVE MARKETS tab stock list
+  const cryptoSet = new Set(CRYPTO_SYMBOLS as unknown as string[]);
+  const marketsStocks = (() => {
+    if (marketFilter === "all")    return visibleStocks;
+    if (marketFilter === "crypto") return visibleStocks.filter(s => cryptoSet.has(s.symbol));
+    if (marketFilter === "nzx")    return visibleStocks.filter(s => s.symbol.endsWith(".NZ"));
+    /* us */                       return visibleStocks.filter(s => !cryptoSet.has(s.symbol) && !s.symbol.endsWith(".NZ"));
+  })();
+
+  function handleMarketFilter(f: MarketFilter) {
+    setMarketFilter(f);
+    setBottomTab("markets");
+  }
   const spy = isCrypto
     ? visibleStocks.find(s => s.symbol === "BTC")
     : visibleStocks.find(s => s.symbol === "SPY");
@@ -471,8 +486,8 @@ export default function DashboardPage() {
         <TickerBar stocks={visibleStocks} onSelect={handleTickerSelect} />
       )}
 
-      {/* ── Market status pills ── */}
-      <MarketStatusBar />
+      {/* ── Market status pills / exchange filter ── */}
+      <MarketStatusBar selected={marketFilter} onSelect={handleMarketFilter} />
 
       {/* ── Day trading HUD ── */}
       {competition?.style === "day_trade" && participant && (
@@ -588,7 +603,7 @@ export default function DashboardPage() {
                 />
                 <div style={{ flex: 1, minHeight: 0 }}>
                   <StockList
-                    stocks={visibleStocks}
+                    stocks={marketsStocks}
                     selectedSymbol={selectedStock?.symbol ?? ""}
                     onSelect={(stock) => setSelectedStock(stock)}
                   />

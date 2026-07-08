@@ -11,6 +11,8 @@ import type {
 } from "@/types";
 
 import TickerBar        from "@/components/TickerBar";
+import MarketStatusBar  from "@/components/MarketStatusBar";
+import StockSearch      from "@/components/StockSearch";
 import Portfolio        from "@/components/Portfolio";
 import StockList        from "@/components/StockList";
 import TradePanel       from "@/components/TradePanel";
@@ -469,6 +471,9 @@ export default function DashboardPage() {
         <TickerBar stocks={visibleStocks} onSelect={handleTickerSelect} />
       )}
 
+      {/* ── Market status pills ── */}
+      <MarketStatusBar />
+
       {/* ── Day trading HUD ── */}
       {competition?.style === "day_trade" && participant && (
         <DayTradingHUD
@@ -567,11 +572,26 @@ export default function DashboardPage() {
           <div style={{ height: 300, overflowY: "auto", flexShrink: 0 }}>
 
             {bottomTab === "markets" && (
-              <StockList
-                stocks={visibleStocks}
-                selectedSymbol={selectedStock?.symbol ?? ""}
-                onSelect={(stock) => setSelectedStock(stock)}
-              />
+              <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                <StockSearch
+                  onSelect={(symbol, name) => {
+                    const existing = stocks.find(s => s.symbol === symbol);
+                    if (existing) {
+                      setSelectedStock(existing);
+                    } else {
+                      // Stock not in current list — create a stub so chart can load
+                      setSelectedStock({ symbol, company_name: name, price: 0, change_percent: 0, updated_at: new Date().toISOString() } as StockPrice);
+                    }
+                  }}
+                />
+                <div style={{ flex: 1, overflow: "hidden" }}>
+                  <StockList
+                    stocks={visibleStocks}
+                    selectedSymbol={selectedStock?.symbol ?? ""}
+                    onSelect={(stock) => setSelectedStock(stock)}
+                  />
+                </div>
+              </div>
             )}
 
             {bottomTab === "trending" && (

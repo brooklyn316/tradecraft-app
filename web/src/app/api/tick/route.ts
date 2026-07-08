@@ -4,6 +4,8 @@ import { getTodaysChallenge } from "@/lib/daily-challenge";
 import { updateStreak, checkAndAwardBadges } from "@/lib/badges";
 import { awardMW, badgeMWReward, MW_REWARDS } from "@/lib/market-wealth";
 import { refreshCryptoPrices, CRYPTO_SYMBOLS } from "@/lib/crypto-prices";
+import { NZX_SYMBOLS } from "@/lib/nzx-stocks";
+import { isNZXOpen } from "@/lib/market-hours";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
@@ -17,28 +19,27 @@ function getAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-// ── Market hours check (9:30am–4:00pm ET, Mon–Fri) ──────────────────────────
+// ── Market hours checks ──────────────────────────────────────────────────────
 function isMarketOpen(): boolean {
   const now = new Date();
   const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-  const day = et.getDay(); // 0=Sun, 6=Sat
+  const day = et.getDay();
   if (day === 0 || day === 6) return false;
-  const h = et.getHours();
-  const m = et.getMinutes();
-  const mins = h * 60 + m;
+  const mins = et.getHours() * 60 + et.getMinutes();
   return mins >= 9 * 60 + 30 && mins < 16 * 60;
 }
 
 // ── Refresh stock prices via Edge Function ───────────────────────────────────
-async function refreshPrices(db: DB): Promise<boolean> {
+const US_SYMBOLS = [
+  "AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","AMD","NFLX","JPM",
+  "V","MA","JNJ","PFE","XOM","CVX","WMT","KO","PYPL","COIN",
+  "SPY","QQQ","RIVN","SNAP","UBER","DIS","BABA","SHOP","SQ","PLTR",
+  "BAC","GS","INTC","MU","ORCL","ADBE","CRM","HOOD","RBLX","SOFI",
+  "NKE","SBUX","MCD","F","GM","BA","CAT","GE","MMM","T",
+];
+
+async function refreshPrices(symbols: string[]): Promise<boolean> {
   const edgeUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/stock-prices`;
-  const symbols = [
-    "AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA","AMD","NFLX","JPM",
-    "V","MA","JNJ","PFE","XOM","CVX","WMT","KO","PYPL","COIN",
-    "SPY","QQQ","RIVN","SNAP","UBER","DIS","BABA","SHOP","SQ","PLTR",
-    "BAC","GS","INTC","MU","ORCL","ADBE","CRM","HOOD","RBLX","SOFI",
-    "NKE","SBUX","MCD","F","GM","BA","CAT","GE","MMM","T",
-  ];
   try {
     const res = await fetch(edgeUrl, {
       method: "POST",
@@ -47,7 +48,6 @@ async function refreshPrices(db: DB): Promise<boolean> {
     });
     return res.ok;
   } catch {
-    // Fall through — bots will use cached prices
     return false;
   }
 }
@@ -823,9 +823,11 @@ export async function GET(req: NextRequest) {
   const marketOpen = isMarketOpen();
   const db = getAdminClient();
 
-  // Refresh prices — stocks only during market hours, crypto always
-  const [pricesRefreshed, cryptoRefreshed] = await Promise.all([
-    marketOpen ? refreshPrices(db) : Promise.resolve(false),
+  // Refresh prices — US stocks during NYSE hours, NZX during NZX hours, crypto always
+  const nzxOpen = isNZXOpen();
+  const [pricesRefreshed, nzxRefreshed, cryptoRefreshed] = await Promise.all([
+    marketOpen ? refreshPrices(US_SYMBOLS)  : Promise.resolve(false),
+    nzxOpen    ? refreshPrices(NZX_SYMBOLS) : Promise.resolve(false),
     refreshCryptoPrices(db),
   ]);
 
@@ -847,8 +849,8 @@ export async function GET(req: NextRequest) {
   );
   const hasCryptoComps = cryptoCompIds.size > 0;
 
-  if (!marketOpen && !hasCryptoComps) {
-    return NextResponse.json({ message: "Market closed", ended, cryptoRefreshed });
+  if (!marketOpen && !nzxOpen && !hasCryptoComps) {
+    return NextResponse.json({ message: "Market closed", ended, cryptoRefreshed, nzxRefreshed });
   }
 
   if (!competitions?.length) {
@@ -937,5 +939,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, pricesRefreshed, cryptoRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, bracketsAdvanced, optionsSettled, optionsPayout, challengesRewarded, ended, competitions: activeComps.length });
+  return NextResponse.json({ success: true, pricesRefreshed, nzxRefreshed, cryptoRefreshed, tradesExecuted, ordersFilledTotal, playerRulesFired, marginInterestCharged, marginCallsFired, iposListed, eodClosed, betWins, betLosses, betPushes, bracketsAdvanced, optionsSettled, optionsPayout, challengesRewarded, ended, competitions: activeComps.length });
 }

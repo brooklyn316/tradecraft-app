@@ -160,7 +160,11 @@ export default function StockList({ stocks, selectedSymbol, onSelect, watchedSym
   const usStocks     = stocks.filter(s => getMarket(s.symbol) === "us");
   const nzxStocks    = stocks.filter(s => getMarket(s.symbol) === "nzx");
   const cryptoStocks = stocks.filter(s => getMarket(s.symbol) === "crypto");
-  const displayedUS  = showAllUS ? usStocks : usStocks.slice(0, 12);
+
+  // When showing multiple market sections, cap US at 4 so the other sections are visible without scrolling
+  const hasMultipleSections = [usStocks, nzxStocks, cryptoStocks].filter(a => a.length > 0).length > 1;
+  const usCollapseAt = hasMultipleSections ? 4 : 12;
+  const displayedUS  = showAllUS ? usStocks : usStocks.slice(0, usCollapseAt);
 
   function row(s: StockPrice) {
     return (
@@ -186,7 +190,7 @@ export default function StockList({ stocks, selectedSymbol, onSelect, watchedSym
           <SectionHeader label="US Stocks" emoji="🇺🇸" isOpen={nyseOpen}
             statusLabel={nyseOpen ? "NYSE OPEN" : "NYSE CLOSED"} count={usStocks.length} />
           {displayedUS.map(row)}
-          {usStocks.length > 12 && (
+          {usStocks.length > usCollapseAt && (
             <button onClick={() => setShowAllUS(v => !v)} style={{
               width: "100%", padding: "9px 14px", border: "none",
               background: "rgba(255,255,255,0.02)", cursor: "pointer",

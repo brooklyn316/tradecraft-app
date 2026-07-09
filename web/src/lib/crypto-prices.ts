@@ -2,6 +2,8 @@
 // Symbols match what Yahoo Finance returns (and what we store in the DB).
 // Display strips the "-USD" suffix in StockList.
 
+// Only coins Yahoo Finance actually supports (verified from live data).
+// TON, ARB, SUI, UNI, PEPE, SHIB return near-$0 from Yahoo — excluded.
 export const COIN_MAP = [
   { symbol: "BTC-USD",  display: "BTC",   name: "Bitcoin"        },
   { symbol: "ETH-USD",  display: "ETH",   name: "Ethereum"       },
@@ -13,16 +15,10 @@ export const COIN_MAP = [
   { symbol: "AVAX-USD", display: "AVAX",  name: "Avalanche"      },
   { symbol: "DOT-USD",  display: "DOT",   name: "Polkadot"       },
   { symbol: "LINK-USD", display: "LINK",  name: "Chainlink"      },
-  { symbol: "UNI-USD",  display: "UNI",   name: "Uniswap"        },
   { symbol: "ATOM-USD", display: "ATOM",  name: "Cosmos"         },
   { symbol: "LTC-USD",  display: "LTC",   name: "Litecoin"       },
   { symbol: "NEAR-USD", display: "NEAR",  name: "NEAR Protocol"  },
-  { symbol: "PEPE-USD", display: "PEPE",  name: "Pepe"           },
-  { symbol: "SHIB-USD", display: "SHIB",  name: "Shiba Inu"      },
-  { symbol: "ARB-USD",  display: "ARB",   name: "Arbitrum"       },
   { symbol: "OP-USD",   display: "OP",    name: "Optimism"       },
-  { symbol: "SUI-USD",  display: "SUI",   name: "Sui"            },
-  { symbol: "TON-USD",  display: "TON",   name: "Toncoin"        },
 ] as const;
 
 // Full Yahoo Finance symbols ("BTC-USD") — used for fetching and stored in DB

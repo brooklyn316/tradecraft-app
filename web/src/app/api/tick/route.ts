@@ -5,6 +5,9 @@ import { updateStreak, checkAndAwardBadges } from "@/lib/badges";
 import { awardMW, badgeMWReward, MW_REWARDS } from "@/lib/market-wealth";
 import { CRYPTO_SYMBOLS } from "@/lib/crypto-prices";
 import { NZX_SYMBOLS } from "@/lib/nzx-stocks";
+import { LSE_SYMBOLS } from "@/lib/lse-stocks";
+import { TSE_SYMBOLS } from "@/lib/tse-stocks";
+import { ASX_SYMBOLS } from "@/lib/asx-stocks";
 import { isNZXOpen } from "@/lib/market-hours";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -825,10 +828,14 @@ export async function GET(req: NextRequest) {
 
   // Refresh prices — US stocks during NYSE hours, NZX always (Yahoo returns last-known when closed), crypto always
   const nzxOpen = isNZXOpen();
-  // Crypto uses the same edge-function path as stocks (Yahoo Finance BTC-USD etc.)
-  // Direct calls to Yahoo from Vercel IPs get blocked; the edge function works fine.
-  const [pricesRefreshed, nzxRefreshed, cryptoRefreshed] = await Promise.all([
+  // All non-US exchanges fetch unconditionally — Yahoo returns last-known price when closed.
+  // Crypto and international exchanges use the same edge-function path (Vercel IPs get
+  // blocked by Yahoo directly; the Supabase edge function on Deno/CF works fine).
+  const [pricesRefreshed, lseRefreshed, tseRefreshed, asxRefreshed, nzxRefreshed, cryptoRefreshed] = await Promise.all([
     marketOpen ? refreshPrices(US_SYMBOLS) : Promise.resolve(false),
+    refreshPrices(LSE_SYMBOLS as unknown as string[]),
+    refreshPrices(TSE_SYMBOLS as unknown as string[]),
+    refreshPrices(ASX_SYMBOLS as unknown as string[]),
     refreshPrices(NZX_SYMBOLS),
     refreshPrices(CRYPTO_SYMBOLS as unknown as string[]),
   ]);

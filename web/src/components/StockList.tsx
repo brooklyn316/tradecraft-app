@@ -4,7 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import type { StockPrice } from "@/types";
 import { CRYPTO_SYMBOLS } from "@/lib/crypto-prices";
 import { NZX_SYMBOLS } from "@/lib/nzx-stocks";
-import { isNYSEOpen, isNZXOpen } from "@/lib/market-hours";
+import { LSE_SYMBOLS } from "@/lib/lse-stocks";
+import { TSE_SYMBOLS } from "@/lib/tse-stocks";
+import { ASX_SYMBOLS } from "@/lib/asx-stocks";
+import { isNYSEOpen, isNZXOpen, isLSEOpen, isTSEOpen, isASXOpen } from "@/lib/market-hours";
 
 interface StockListProps {
   stocks: StockPrice[];
@@ -16,14 +19,20 @@ interface StockListProps {
 
 const CRYPTO_SET = new Set<string>(CRYPTO_SYMBOLS as unknown as string[]);
 const NZX_SET    = new Set<string>(NZX_SYMBOLS    as unknown as string[]);
+const LSE_SET    = new Set<string>(LSE_SYMBOLS    as unknown as string[]);
+const TSE_SET    = new Set<string>(TSE_SYMBOLS    as unknown as string[]);
+const ASX_SET    = new Set<string>(ASX_SYMBOLS    as unknown as string[]);
 
-function getMarket(symbol: string): "crypto" | "nzx" | "us" {
+function getMarket(symbol: string): "crypto" | "lse" | "tse" | "asx" | "nzx" | "us" {
   if (CRYPTO_SET.has(symbol) || symbol.endsWith("-USD")) return "crypto";
-  if (NZX_SET.has(symbol) || symbol.endsWith(".NZ")) return "nzx";
+  if (LSE_SET.has(symbol)    || symbol.endsWith(".L"))   return "lse";
+  if (TSE_SET.has(symbol)    || symbol.endsWith(".T"))   return "tse";
+  if (ASX_SET.has(symbol)    || symbol.endsWith(".AX"))  return "asx";
+  if (NZX_SET.has(symbol)    || symbol.endsWith(".NZ"))  return "nzx";
   return "us";
 }
 
-/** Strip Yahoo Finance suffix for display: "BTC-USD" → "BTC", "AIR.NZ" → "AIR.NZ" */
+/** Strip Yahoo Finance suffix for display: "BTC-USD" → "BTC", others unchanged */
 function displaySymbol(symbol: string): string {
   return symbol.endsWith("-USD") ? symbol.slice(0, -4) : symbol;
 }
@@ -139,6 +148,9 @@ export default function StockList({ stocks, selectedSymbol, onSelect, watchedSym
   const prevPrices = useRef<Record<string, number>>({});
   const [flashMap, setFlashMap]   = useState<Record<string, "up" | "down" | null>>({});
   const [nyseOpen, setNyseOpen]   = useState(isNYSEOpen());
+  const [lseOpen,  setLseOpen]    = useState(isLSEOpen());
+  const [tseOpen,  setTseOpen]    = useState(isTSEOpen());
+  const [asxOpen,  setAsxOpen]    = useState(isASXOpen());
   const [nzxOpen,  setNzxOpen]    = useState(isNZXOpen());
   const [showAllUS, setShowAllUS] = useState(false);
 
@@ -158,17 +170,26 @@ export default function StockList({ stocks, selectedSymbol, onSelect, watchedSym
 
   // Refresh market status every minute
   useEffect(() => {
-    const id = setInterval(() => { setNyseOpen(isNYSEOpen()); setNzxOpen(isNZXOpen()); }, 60_000);
+    const id = setInterval(() => {
+      setNyseOpen(isNYSEOpen());
+      setLseOpen(isLSEOpen());
+      setTseOpen(isTSEOpen());
+      setAsxOpen(isASXOpen());
+      setNzxOpen(isNZXOpen());
+    }, 60_000);
     return () => clearInterval(id);
   }, []);
 
   const usStocks     = stocks.filter(s => getMarket(s.symbol) === "us");
+  const lseStocks    = stocks.filter(s => getMarket(s.symbol) === "lse");
+  const tseStocks    = stocks.filter(s => getMarket(s.symbol) === "tse");
+  const asxStocks    = stocks.filter(s => getMarket(s.symbol) === "asx");
   const nzxStocks    = stocks.filter(s => getMarket(s.symbol) === "nzx");
   const cryptoStocks = stocks.filter(s => getMarket(s.symbol) === "crypto");
 
-  // When showing multiple market sections, cap US at 4 so the other sections are visible without scrolling
-  const hasMultipleSections = [usStocks, nzxStocks, cryptoStocks].filter(a => a.length > 0).length > 1;
-  const usCollapseAt = hasMultipleSections ? 4 : 12;
+  // When showing multiple sections, cap US at 4 so lower sections are visible without scrolling
+  const activeSections = [usStocks, lseStocks, tseStocks, asxStocks, nzxStocks, cryptoStocks].filter(a => a.length > 0).length;
+  const usCollapseAt = activeSections > 1 ? 4 : 12;
   const displayedUS  = showAllUS ? usStocks : usStocks.slice(0, usCollapseAt);
 
   function row(s: StockPrice) {
@@ -206,6 +227,27 @@ export default function StockList({ stocks, selectedSymbol, onSelect, watchedSym
               {showAllUS ? "▲ Show fewer" : `▼ Show all ${usStocks.length} US stocks`}
             </button>
           )}
+        </>}
+
+        {/* UK Stocks */}
+        {lseStocks.length > 0 && <>
+          <SectionHeader label="UK Stocks" emoji="🇬🇧" isOpen={lseOpen}
+            statusLabel={lseOpen ? "LSE OPEN" : "LSE CLOSED"} count={lseStocks.length} />
+          {lseStocks.map(row)}
+        </>}
+
+        {/* Japan Stocks */}
+        {tseStocks.length > 0 && <>
+          <SectionHeader label="Japan Stocks" emoji="🇯🇵" isOpen={tseOpen}
+            statusLabel={tseOpen ? "TSE OPEN" : "TSE CLOSED"} count={tseStocks.length} />
+          {tseStocks.map(row)}
+        </>}
+
+        {/* AU Stocks */}
+        {asxStocks.length > 0 && <>
+          <SectionHeader label="AU Stocks" emoji="🇦🇺" isOpen={asxOpen}
+            statusLabel={asxOpen ? "ASX OPEN" : "ASX CLOSED"} count={asxStocks.length} />
+          {asxStocks.map(row)}
         </>}
 
         {/* NZ Stocks */}

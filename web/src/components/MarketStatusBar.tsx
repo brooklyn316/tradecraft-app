@@ -3,18 +3,18 @@
 import { useState, useEffect } from "react";
 import { getMarketStatus, type MarketStatus } from "@/lib/market-hours";
 
-export type MarketFilter = "all" | "us" | "nzx" | "crypto";
+export type MarketFilter = "all" | "us" | "lse" | "tse" | "asx" | "nzx" | "crypto";
 
 interface MarketStatusBarProps {
-  selected:   MarketFilter;
-  onSelect:   (f: MarketFilter) => void;
+  selected: MarketFilter;
+  onSelect: (f: MarketFilter) => void;
 }
 
 interface PillProps {
-  label:    string;
-  open:     boolean;
-  active:   boolean;
-  onClick:  () => void;
+  label:   string;
+  open:    boolean;
+  active:  boolean;
+  onClick: () => void;
 }
 
 function StatusPill({ label, open, active, onClick }: PillProps) {
@@ -22,7 +22,7 @@ function StatusPill({ label, open, active, onClick }: PillProps) {
     <button
       onClick={onClick}
       style={{
-        display: "flex", alignItems: "center", gap: 5,
+        display: "flex", alignItems: "center", gap: 5, flexShrink: 0,
         padding: "3px 9px", borderRadius: 99, cursor: "pointer",
         background: active
           ? (open ? "rgba(74,222,128,0.15)" : "rgba(125,211,176,0.1)")
@@ -32,8 +32,7 @@ function StatusPill({ label, open, active, onClick }: PillProps) {
             ? (open ? "rgba(74,222,128,0.45)" : "rgba(125,211,176,0.3)")
             : (open ? "rgba(74,222,128,0.15)" : "rgba(255,255,255,0.07)")
         }`,
-        outline: "none",
-        transition: "all 0.15s",
+        outline: "none", transition: "all 0.15s",
         opacity: active ? 1 : 0.6,
       }}
     >
@@ -44,11 +43,10 @@ function StatusPill({ label, open, active, onClick }: PillProps) {
         animation: open ? "pulse-dot 2s ease-in-out infinite" : "none",
       }} />
       <span style={{
-        fontSize: 10, fontWeight: 700, letterSpacing: "0.05em",
+        fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", whiteSpace: "nowrap",
         color: active
           ? (open ? "rgba(74,222,128,0.95)" : "rgba(232,234,240,0.75)")
           : (open ? "rgba(74,222,128,0.6)"  : "rgba(232,234,240,0.3)"),
-        whiteSpace: "nowrap",
       }}>
         {label}
       </span>
@@ -71,19 +69,25 @@ export default function MarketStatusBar({ selected, onSelect }: MarketStatusBarP
           0%, 100% { opacity: 1; }
           50%       { opacity: 0.4; }
         }
+        .market-bar::-webkit-scrollbar { display: none; }
+        .market-bar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 5,
-        padding: "4px 14px",
-        borderBottom: "1px solid rgba(255,255,255,0.04)",
-        background: "rgba(6,10,20,0.6)",
-        flexShrink: 0,
-      }}>
-        {/* ALL button */}
+      <div
+        className="market-bar"
+        style={{
+          display: "flex", alignItems: "center", gap: 5,
+          padding: "4px 14px",
+          borderBottom: "1px solid rgba(255,255,255,0.04)",
+          background: "rgba(6,10,20,0.6)",
+          flexShrink: 0,
+          overflowX: "auto",
+        }}
+      >
+        {/* ALL */}
         <button
           onClick={() => onSelect("all")}
           style={{
-            fontSize: 9, fontWeight: 800, letterSpacing: "0.07em",
+            fontSize: 9, fontWeight: 800, letterSpacing: "0.07em", flexShrink: 0,
             padding: "3px 9px", borderRadius: 99, cursor: "pointer",
             background: selected === "all" ? "rgba(125,211,176,0.12)" : "rgba(255,255,255,0.03)",
             border: `1px solid ${selected === "all" ? "rgba(125,211,176,0.35)" : "rgba(255,255,255,0.08)"}`,
@@ -94,28 +98,12 @@ export default function MarketStatusBar({ selected, onSelect }: MarketStatusBarP
           ALL
         </button>
 
-        <StatusPill
-          label={status.nyse.label}
-          open={status.nyse.open}
-          active={selected === "us"}
-          onClick={() => onSelect("us")}
-        />
-        <StatusPill
-          label={status.nzx.label}
-          open={status.nzx.open}
-          active={selected === "nzx"}
-          onClick={() => onSelect("nzx")}
-        />
-        <StatusPill
-          label={status.crypto.label}
-          open={status.crypto.open}
-          active={selected === "crypto"}
-          onClick={() => onSelect("crypto")}
-        />
-
-        <span style={{ fontSize: 9, color: "rgba(232,234,240,0.2)", marginLeft: 4 }}>
-          tap to filter
-        </span>
+        <StatusPill label={status.nyse.label}   open={status.nyse.open}   active={selected === "us"}     onClick={() => onSelect("us")}     />
+        <StatusPill label={status.lse.label}    open={status.lse.open}    active={selected === "lse"}    onClick={() => onSelect("lse")}    />
+        <StatusPill label={status.tse.label}    open={status.tse.open}    active={selected === "tse"}    onClick={() => onSelect("tse")}    />
+        <StatusPill label={status.asx.label}    open={status.asx.open}    active={selected === "asx"}    onClick={() => onSelect("asx")}    />
+        <StatusPill label={status.nzx.label}    open={status.nzx.open}    active={selected === "nzx"}    onClick={() => onSelect("nzx")}    />
+        <StatusPill label={status.crypto.label} open={status.crypto.open} active={selected === "crypto"} onClick={() => onSelect("crypto")} />
       </div>
     </>
   );

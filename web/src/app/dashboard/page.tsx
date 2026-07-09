@@ -347,14 +347,19 @@ export default function DashboardPage() {
     : stocks;
 
   // Market filter: applied only to the LIVE MARKETS tab stock list
-  // Crypto symbols are stored as "BTC-USD" etc. (Yahoo Finance format)
   const cryptoSet = new Set(CRYPTO_SYMBOLS as unknown as string[]);
   const isCryptoSymbol = (sym: string) => cryptoSet.has(sym) || sym.endsWith("-USD");
+  const isIntlSymbol   = (sym: string) =>
+    isCryptoSymbol(sym) || sym.endsWith(".NZ") || sym.endsWith(".L") || sym.endsWith(".T") || sym.endsWith(".AX");
+
   const marketsStocks = (() => {
     if (marketFilter === "all")    return visibleStocks;
     if (marketFilter === "crypto") return visibleStocks.filter(s => isCryptoSymbol(s.symbol));
     if (marketFilter === "nzx")    return visibleStocks.filter(s => s.symbol.endsWith(".NZ"));
-    /* us */                       return visibleStocks.filter(s => !isCryptoSymbol(s.symbol) && !s.symbol.endsWith(".NZ"));
+    if (marketFilter === "lse")    return visibleStocks.filter(s => s.symbol.endsWith(".L"));
+    if (marketFilter === "tse")    return visibleStocks.filter(s => s.symbol.endsWith(".T"));
+    if (marketFilter === "asx")    return visibleStocks.filter(s => s.symbol.endsWith(".AX"));
+    /* us */                       return visibleStocks.filter(s => !isIntlSymbol(s.symbol));
   })();
 
   function handleMarketFilter(f: MarketFilter) {

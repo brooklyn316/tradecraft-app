@@ -3,7 +3,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { getTodaysChallenge } from "@/lib/daily-challenge";
 import { updateStreak, checkAndAwardBadges } from "@/lib/badges";
 import { awardMW, badgeMWReward, MW_REWARDS } from "@/lib/market-wealth";
-import { refreshCryptoPrices, CRYPTO_SYMBOLS } from "@/lib/crypto-prices";
+import { CRYPTO_SYMBOLS } from "@/lib/crypto-prices";
 import { NZX_SYMBOLS } from "@/lib/nzx-stocks";
 import { isNZXOpen } from "@/lib/market-hours";
 
@@ -825,10 +825,12 @@ export async function GET(req: NextRequest) {
 
   // Refresh prices — US stocks during NYSE hours, NZX always (Yahoo returns last-known when closed), crypto always
   const nzxOpen = isNZXOpen();
+  // Crypto uses the same edge-function path as stocks (Yahoo Finance BTC-USD etc.)
+  // Direct calls to Yahoo from Vercel IPs get blocked; the edge function works fine.
   const [pricesRefreshed, nzxRefreshed, cryptoRefreshed] = await Promise.all([
     marketOpen ? refreshPrices(US_SYMBOLS) : Promise.resolve(false),
     refreshPrices(NZX_SYMBOLS),
-    refreshCryptoPrices(db),
+    refreshPrices(CRYPTO_SYMBOLS as unknown as string[]),
   ]);
 
   // Get current prices

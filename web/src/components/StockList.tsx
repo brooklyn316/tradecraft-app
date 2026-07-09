@@ -18,9 +18,14 @@ const CRYPTO_SET = new Set<string>(CRYPTO_SYMBOLS as unknown as string[]);
 const NZX_SET    = new Set<string>(NZX_SYMBOLS    as unknown as string[]);
 
 function getMarket(symbol: string): "crypto" | "nzx" | "us" {
-  if (CRYPTO_SET.has(symbol)) return "crypto";
+  if (CRYPTO_SET.has(symbol) || symbol.endsWith("-USD")) return "crypto";
   if (NZX_SET.has(symbol) || symbol.endsWith(".NZ")) return "nzx";
   return "us";
+}
+
+/** Strip Yahoo Finance suffix for display: "BTC-USD" → "BTC", "AIR.NZ" → "AIR.NZ" */
+function displaySymbol(symbol: string): string {
+  return symbol.endsWith("-USD") ? symbol.slice(0, -4) : symbol;
 }
 
 // ── Single stock row ──────────────────────────────────────────────────────────
@@ -57,7 +62,7 @@ function StockRow({
       <div style={{ minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: isSelected ? "#7dd3b0" : "rgba(232,234,240,0.9)" }}>
-            {stock.symbol}
+            {displaySymbol(stock.symbol)}
           </span>
           <span style={{
             fontSize: 9, fontWeight: 700, padding: "1px 4px", borderRadius: 3,

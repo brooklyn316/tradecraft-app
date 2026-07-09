@@ -3,64 +3,72 @@ import { SupabaseClient } from "@supabase/supabase-js";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
 
-// ── Coin map: CoinGecko ID → display symbol + name ───────────────────────────
+// ── Coin map: Yahoo Finance symbol → display symbol + name ───────────────────
+// Using Yahoo Finance ("BTC-USD") so we reuse the same reliable source as stocks.
+// Internal symbols stored in DB as "BTC", "ETH", etc. (without -USD).
 export const COIN_MAP = [
-  { id: "bitcoin",          symbol: "BTC",   name: "Bitcoin"        },
-  { id: "ethereum",         symbol: "ETH",   name: "Ethereum"       },
-  { id: "solana",           symbol: "SOL",   name: "Solana"         },
-  { id: "binancecoin",      symbol: "BNB",   name: "BNB"            },
-  { id: "ripple",           symbol: "XRP",   name: "XRP"            },
-  { id: "cardano",          symbol: "ADA",   name: "Cardano"        },
-  { id: "dogecoin",         symbol: "DOGE",  name: "Dogecoin"       },
-  { id: "avalanche-2",      symbol: "AVAX",  name: "Avalanche"      },
-  { id: "polkadot",         symbol: "DOT",   name: "Polkadot"       },
-  { id: "matic-network",    symbol: "MATIC", name: "Polygon"        },
-  { id: "chainlink",        symbol: "LINK",  name: "Chainlink"      },
-  { id: "uniswap",          symbol: "UNI",   name: "Uniswap"        },
-  { id: "cosmos",           symbol: "ATOM",  name: "Cosmos"         },
-  { id: "litecoin",         symbol: "LTC",   name: "Litecoin"       },
-  { id: "near",             symbol: "NEAR",  name: "NEAR Protocol"  },
-  { id: "pepe",             symbol: "PEPE",  name: "Pepe"           },
-  { id: "shiba-inu",        symbol: "SHIB",  name: "Shiba Inu"      },
-  { id: "arbitrum",         symbol: "ARB",   name: "Arbitrum"       },
-  { id: "optimism",         symbol: "OP",    name: "Optimism"       },
-  { id: "sui",              symbol: "SUI",   name: "Sui"            },
+  { yahoo: "BTC-USD",   symbol: "BTC",   name: "Bitcoin"        },
+  { yahoo: "ETH-USD",   symbol: "ETH",   name: "Ethereum"       },
+  { yahoo: "SOL-USD",   symbol: "SOL",   name: "Solana"         },
+  { yahoo: "BNB-USD",   symbol: "BNB",   name: "BNB"            },
+  { yahoo: "XRP-USD",   symbol: "XRP",   name: "XRP"            },
+  { yahoo: "ADA-USD",   symbol: "ADA",   name: "Cardano"        },
+  { yahoo: "DOGE-USD",  symbol: "DOGE",  name: "Dogecoin"       },
+  { yahoo: "AVAX-USD",  symbol: "AVAX",  name: "Avalanche"      },
+  { yahoo: "DOT-USD",   symbol: "DOT",   name: "Polkadot"       },
+  { yahoo: "LINK-USD",  symbol: "LINK",  name: "Chainlink"      },
+  { yahoo: "UNI-USD",   symbol: "UNI",   name: "Uniswap"        },
+  { yahoo: "ATOM-USD",  symbol: "ATOM",  name: "Cosmos"         },
+  { yahoo: "LTC-USD",   symbol: "LTC",   name: "Litecoin"       },
+  { yahoo: "NEAR-USD",  symbol: "NEAR",  name: "NEAR Protocol"  },
+  { yahoo: "PEPE-USD",  symbol: "PEPE",  name: "Pepe"           },
+  { yahoo: "SHIB-USD",  symbol: "SHIB",  name: "Shiba Inu"      },
+  { yahoo: "ARB-USD",   symbol: "ARB",   name: "Arbitrum"       },
+  { yahoo: "OP-USD",    symbol: "OP",    name: "Optimism"       },
+  { yahoo: "SUI-USD",   symbol: "SUI",   name: "Sui"            },
+  { yahoo: "TON-USD",   symbol: "TON",   name: "Toncoin"        },
 ] as const;
 
 export const CRYPTO_SYMBOLS = COIN_MAP.map(c => c.symbol);
 
-// ── Fetch prices from CoinGecko and upsert to stock_prices ───────────────────
+// ── Fetch prices from Yahoo Finance and upsert to stock_prices ───────────────
+// Uses the same Yahoo Finance endpoint as the main stock fetcher — no API key,
+// more reliable than CoinGecko free tier.
 export async function refreshCryptoPrices(db: DB): Promise<boolean> {
-  const ids = COIN_MAP.map(c => c.id).join(",");
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true`;
+  const yahooSymbols = COIN_MAP.map(c => c.yahoo).join(",");
+  const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${yahooSymbols}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketChange,regularMarketPreviousClose,regularMarketOpen,regularMarketDayHigh,regularMarketDayLow,regularMarketVolume`;
 
   try {
     const res = await fetch(url, {
-      headers: { "Accept": "application/json" },
-      signal: AbortSignal.timeout(8000),
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; Tradecraft/1.0)",
+        "Accept": "application/json",
+      },
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return false;
 
-    const data: Record<string, { usd: number; usd_24h_change?: number; usd_24h_vol?: number }> = await res.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await res.json();
+    const quotes: any[] = data?.quoteResponse?.result ?? [];
+    if (!quotes.length) return false;
 
-    const rows = COIN_MAP.map(coin => {
-      const d = data[coin.id];
-      if (!d) return null;
-      const price        = d.usd ?? 0;
-      const changePct    = d.usd_24h_change ?? 0;
-      const prevClose    = price / (1 + changePct / 100);
-      const changeAmount = price - prevClose;
+    const rows = quotes.map(q => {
+      const coin = COIN_MAP.find(c => c.yahoo === q.symbol);
+      if (!coin) return null;
+      const price     = q.regularMarketPrice     ?? 0;
+      const changePct = q.regularMarketChangePercent ?? 0;
       return {
-        symbol:         coin.symbol,
+        symbol:         coin.symbol,           // store as "BTC", not "BTC-USD"
         company_name:   coin.name,
         price,
         change_percent: changePct,
-        change_amount:  changeAmount,
-        prev_close:     prevClose,
-        open:           prevClose,
-        high:           null,
-        low:            null,
-        volume:         d.usd_24h_vol ?? null,
+        change_amount:  q.regularMarketChange   ?? 0,
+        prev_close:     q.regularMarketPreviousClose ?? 0,
+        open:           q.regularMarketOpen     ?? 0,
+        high:           q.regularMarketDayHigh  ?? null,
+        low:            q.regularMarketDayLow   ?? null,
+        volume:         q.regularMarketVolume   ?? null,
         updated_at:     new Date().toISOString(),
       };
     }).filter((r): r is NonNullable<typeof r> => r !== null);

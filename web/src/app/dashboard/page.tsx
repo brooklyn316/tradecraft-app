@@ -882,7 +882,13 @@ export default function DashboardPage() {
             )}
 
             {rightTab === "history" && participantId && (
-              <TradeHistory participantId={participantId} />
+              <TradeHistory
+                participantId={participantId}
+                onSelectSymbol={(sym) => {
+                  setSelectedStock(stocks.find(s => s.symbol === sym) ?? null);
+                  setRightTab("trade");
+                }}
+              />
             )}
 
             {rightTab === "picks" && participant && (

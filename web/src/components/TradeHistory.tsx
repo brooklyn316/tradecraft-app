@@ -17,6 +17,7 @@ interface Trade {
 interface TradeHistoryProps {
   participantId: string;
   refreshKey?: number;
+  onSelectSymbol?: (symbol: string) => void;
 }
 
 function formatRelativeTime(iso: string) {
@@ -30,7 +31,7 @@ function formatRelativeTime(iso: string) {
 
 const SHARE_BASE = "https://tradecraft.voxlabs.dev/share/trade";
 
-export default function TradeHistory({ participantId, refreshKey }: TradeHistoryProps) {
+export default function TradeHistory({ participantId, refreshKey, onSelectSymbol }: TradeHistoryProps) {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -132,7 +133,19 @@ export default function TradeHistory({ participantId, refreshKey }: TradeHistory
                 {/* Details */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(232,234,240,0.9)" }}>{trade.symbol}</span>
+                    <button
+                      onClick={() => onSelectSymbol?.(trade.symbol)}
+                      title="Go to Trade"
+                      style={{
+                        background: "none", border: "none", padding: 0, cursor: onSelectSymbol ? "pointer" : "default",
+                        fontSize: 13, fontWeight: 700, color: onSelectSymbol ? "#7dd3b0" : "rgba(232,234,240,0.9)",
+                        textDecoration: onSelectSymbol ? "underline" : "none",
+                        textDecorationColor: "rgba(125,211,176,0.4)",
+                        textUnderlineOffset: 2,
+                      }}
+                    >
+                      {trade.symbol}
+                    </button>
                     <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 700, color: isBuy ? "#f87171" : "#4ade80" }}>
                       {isBuy ? "−" : "+"}{formatCurrency(trade.total)}
                     </span>
@@ -146,6 +159,28 @@ export default function TradeHistory({ participantId, refreshKey }: TradeHistory
                     </span>
                   </div>
                 </div>
+
+                {/* Trade button */}
+                {onSelectSymbol && (
+                  <button
+                    onClick={() => onSelectSymbol(trade.symbol)}
+                    title="Trade this stock"
+                    style={{
+                      flexShrink: 0,
+                      padding: "4px 7px",
+                      fontSize: 9,
+                      fontWeight: 700,
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      border: "1px solid rgba(125,211,176,0.2)",
+                      background: "rgba(125,211,176,0.07)",
+                      color: "#7dd3b0",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    Trade →
+                  </button>
+                )}
 
                 {/* Share button */}
                 {trade.id && (

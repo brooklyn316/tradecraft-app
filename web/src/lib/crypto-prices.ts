@@ -39,7 +39,7 @@ export const COIN_MAP = [
   // ── Tier 3 — DeFi & ecosystem tokens ─────────────────────────────────────
   { symbol: "MKR-USD",   display: "MKR",   name: "Maker"             },
   { symbol: "AAVE-USD",  display: "AAVE",  name: "Aave"              },
-  { symbol: "COMP-USD",  display: "COMP",  name: "Compound"          },
+  { symbol: "STX-USD",   display: "STX",   name: "Stacks"            },
   { symbol: "SNX-USD",   display: "SNX",   name: "Synthetix"         },
   { symbol: "YFI-USD",   display: "YFI",   name: "Yearn Finance"     },
   { symbol: "GRT-USD",   display: "GRT",   name: "The Graph"         },
